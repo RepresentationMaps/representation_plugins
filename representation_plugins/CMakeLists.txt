@@ -21,13 +21,15 @@ find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
 # Targets
-ament_auto_add_library(representation_plugins src/representation_plugins/plugin_test.cpp)
+add_library(representation_plugins src/representation_plugins/plugin_test.cpp)
+
 target_include_directories(representation_plugins PUBLIC
-<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-<INSTALL_INTERFACE:include>)
+$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+$<INSTALL_INTERFACE:include>)
 
 ament_target_dependencies(
   representation_plugins
+  rclcpp
   representation_plugin_base
   pluginlib
 )

@@ -17,20 +17,23 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-add_compile_definitions(OPENVDB_10_ABI_COMPATIBLE)
+list(APPEND CMAKE_MODULE_PATH "${FIND_OPENVDB_PATH}")
 
+find_package(OpenVDB REQUIRED)
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
-find_package(OpenVDB REQUIRED)
-
-include_directories(BEFORE /usr/include/oneapi /usr/include)
 
 # Targets
 ament_auto_add_library(${PROJECT_NAME}_lib
   src/map_handler/frustum_fov.cpp
 )
 
-ament_auto_add_executable(${PROJECT_NAME}
+target_link_libraries(${PROJECT_NAME}_lib
+  ${Tbb_LIBRARIES}
+  ${OpenVDB_LIBRARIES}
+)
+
+ament_auto_add_executable(frustum_debug
   src/frustum_debug.cpp
 )
 
