@@ -37,12 +37,10 @@ namespace map_handler{
 				//    Then, we procees
 				axis_.normalize();
 				tf2::Vector3 temp_axis(1.0, 0.0, 0.0);
-				tf2::Vector3 center_min(d_min, 0.0, 0.0);
-				tf2::Vector3 center_max(d_max, 0.0, 0.0);
 
 				// 5.1 We compute the angle between the two vectors
 				//	   assumes the angle is in range [0, pi]
-				double angle = std::acos(temp_axis.dot(axis));
+				double angle = std::acos(temp_axis.dot(axis_));
 
 				// 5.2 Compute the cross product to find a normal
 				//     vector to later be used for the quaternion computation
@@ -70,6 +68,9 @@ namespace map_handler{
 				// 5.4 compute the quaternion representing the rotation
 				quaternion_ = tf2::Quaternion(rot_axis, angle);
 
+				tf2::Vector3 center_min(d_min, 0.0, 0.0);
+				tf2::Vector3 center_max(d_max, 0.0, 0.0);
+
 				// 5.5 we compute the temporary coordinates for the frustum volume
 				tf2::Vector3 ab, bc, ef, fg; // All of these are actually half of the vector
 				ab = tf2::Vector3(0.0, width_min, 0.0);
@@ -79,28 +80,28 @@ namespace map_handler{
 
 				// 5.6 we compute the rotated limits
 				tf2::Vector3 a, b, c, d, e, f, g, h;
-				a = -ab-bc;
+				a = center_min-ab-bc;
 				a = tf2::quatRotate(quaternion_, a);
 				vertices_.push_back(a);
-				b = ab-bc;
+				b = center_min+ab-bc;
 				b = tf2::quatRotate(quaternion_, b);
 				vertices_.push_back(b);
-				c = ab+bc;
+				c = center_min+ab+bc;
 				c = tf2::quatRotate(quaternion_, c);
 				vertices_.push_back(c);
-				d = -ab+bc;
+				d = center_min-ab+bc;
 				d = tf2::quatRotate(quaternion_, d);
 				vertices_.push_back(d);
-				e = -ef-fg;
+				e = center_max-ef-fg;
 				e = tf2::quatRotate(quaternion_, e);
 				vertices_.push_back(e);
-				f = ef-fg;
+				f = center_max+ef-fg;
 				f = tf2::quatRotate(quaternion_, f);
 				vertices_.push_back(f);
-				g = ef+fg;
+				g = center_max+ef+fg;
 				g = tf2::quatRotate(quaternion_, g);
 				vertices_.push_back(g);
-				h = -ef+fg;
+				h = center_max-ef+fg;
 				h = tf2::quatRotate(quaternion_, h);
 				vertices_.push_back(h);
 
@@ -156,9 +157,9 @@ namespace map_handler{
 			
 			frustum_msg_.action = visualization_msgs::msg::Marker::ADD;
 			
-			frustum_msg_.scale.x = 1.0;
-			frustum_msg_.scale.y = 1.0;
-			frustum_msg_.scale.z = 1.0;
+			frustum_msg_.scale.x = 0.1;
+			frustum_msg_.scale.y = 0.0;
+			frustum_msg_.scale.z = 0.0;
 
 			frustum_msg_.color.r = 1.0;
 			frustum_msg_.color.g = 0.0;
