@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>map_handler</name>
+  <version>1.9.9</version>
+  <description>Tools for map handling</description>
+
+  <maintainer email="lorenzo.ferrini@pal-robotics.com">Lorenzo Ferrini</maintainer>
+
+  <license>PAL Robotics S.L.</license>
+
+  <author email="lorenzo.ferrini@pal-robotics.com">Lorenzo Ferrini</author>
+
+  <buildtool_depend>ament_cmake_auto</buildtool_depend>
+
+  <build_depend>rclcpp</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>tbb</build_depend> 
+  <build_depend>tf2_geometry_msgs</build_depend>
+  <build_depend>visualization_msgs</build_depend>
+
+  <exec_depend>rclcpp</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>tbb</exec_depend> 
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+
+  <test_depend>ament_cmake_gmock</test_depend>
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
