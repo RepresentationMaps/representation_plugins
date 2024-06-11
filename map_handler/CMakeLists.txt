@@ -19,6 +19,9 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${FIND_OPENVDB_PATH}")
 
+find_package(sensor_msgs REQUIRED)
+find_package(pcl_conversions REQUIRED)
+find_package(PCL REQUIRED)
 find_package(OpenVDB REQUIRED)
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
@@ -26,9 +29,11 @@ ament_auto_find_build_dependencies()
 # Targets
 ament_auto_add_library(${PROJECT_NAME}_lib
   src/map_handler/frustum_fov.cpp
+  src/map_handler/map_handler.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}_lib
+  ${PCL_LIBRARIES}  
   ${Tbb_LIBRARIES}
   ${OpenVDB_LIBRARIES}
 )

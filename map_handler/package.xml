@@ -16,11 +16,21 @@
   <build_depend>geometry_msgs</build_depend>
   <build_depend>tf2_geometry_msgs</build_depend>
   <build_depend>visualization_msgs</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>pcl</build_depend>
+  <build_depend>pcl_conversions</build_depend>
+  <build_depend>tbb</build_depend>
+  <build_depend>openvdb</build_depend>
 
   <exec_depend>rclcpp</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>tf2_geometry_msgs</exec_depend>
   <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>pcl</exec_depend>
+  <exec_depend>pcl_conversions</exec_depend>
+  <exec_depend>tbb</exec_depend>
+  <exec_depend>openvdb</exec_depend>
 
   <test_depend>ament_cmake_gmock</test_depend>
   <test_depend>ament_lint_auto</test_depend>
