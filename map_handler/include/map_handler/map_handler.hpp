@@ -211,13 +211,19 @@ namespace map_handler
 							openvdb::Vec3d current_point(i,j,k);
 							current_point = rotation_quat.rotateVector(current_point);
 							current_point = current_point + idx_space_origin;
-							accessor.setValue(openvdb::Coord(static_cast<int>(std::round(current_point[0])),static_cast<int>(std::round(current_point[1])),static_cast<int>(std::round(current_point[2]))),intensity);
+
+							openvdb::Coord ijk (static_cast<int>(std::round(current_point[0])),static_cast<int>(std::round(current_point[1])),static_cast<int>(std::round(current_point[2])));
+
+							if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
+								accessor.setValue(ijk,std::invoke(intensity,grid_->indexToWorld(ijk)));
+							else
+								accessor.setValue(ijk,intensity);
 						}
 					}
 			}
 
 			template<class TreeT, class U>
-			void sphereCore(TreeT& tree, const int& idx_i, const openvdb::Coord& ijk_min, const openvdb::Coord& ijk_max, const float& radius, const openvdb::Vec3d &centre, const U& intensity)
+			void sphereCore(TreeT& tree, const int& idx_i, const openvdb::Coord& ijk_min, const openvdb::Coord& ijk_max, const float& radius, const openvdb::Vec3d& centre, const U& intensity)
 			{
 				using GridAccessorType = typename openvdb::Grid<TreeT>::Accessor;
 				GridAccessorType accessor(tree);
@@ -231,7 +237,10 @@ namespace map_handler
 						float distance = computeDistance(centre,current_point);
 						if(distance <= radius)
 						{	
-							accessor.setValue(ijk,intensity);
+							if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
+								accessor.setValue(ijk,std::invoke(intensity,current_point));
+							else
+								accessor.setValue(ijk,intensity);
 						}
 					}
 				}
@@ -261,13 +270,35 @@ namespace map_handler
 							openvdb::Vec3d current_point(i, j, k);
 							current_point = rotation_quat.rotateVector(current_point);
 							current_point = current_point + idx_space_origin;
-							accessor.setValue(openvdb::Coord(static_cast<int>(std::round(current_point[0])), static_cast<int>(std::round(current_point[1])), static_cast<int>(std::round(current_point[2]))), intensity);
+
+							openvdb::Coord ijk (static_cast<int>(std::round(current_point[0])),static_cast<int>(std::round(current_point[1])),static_cast<int>(std::round(current_point[2])));
+
+							if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
+								accessor.setValue(ijk,std::invoke(intensity,grid_->indexToWorld(ijk)));
+							else
+								accessor.setValue(ijk,intensity);
 						}
 					}
 			}
-			/* -------------------------------------------------------------------------- */
 
+			template<class TreeT, class U>
+			void boxCore(TreeT& tree, const int& idx_i, const openvdb::Coord& ijk_min, const openvdb::Coord& ijk_max, const U& intensity)
+			{
+				using GridAccessorType = typename openvdb::Grid<TreeT>::Accessor;
+				GridAccessorType accessor(tree);
 
+				for(int idx_j = ijk_min[1]; idx_j <= ijk_max[1]; ++idx_j)
+					for(int idx_k = ijk_min[2]; idx_k <= ijk_max[2]; ++idx_k)
+					{
+						openvdb::Coord ijk(idx_i,idx_j,idx_k);
+
+						if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
+								accessor.setValue(ijk,std::invoke(intensity,grid_->indexToWorld(ijk)));
+							else
+								accessor.setValue(ijk,intensity);
+					}
+						
+			}
 		/* -------------------------------------------------------------------------- */
 
 		/* --------------------------------- Public --------------------------------- */
@@ -345,7 +376,7 @@ namespace map_handler
 			
 			/* --------------------------------- Insert --------------------------------- */
 			template <class U>
-			void insertCone(const float &amplitude, const float &length, const openvdb::Vec3d &direction, const U &intensity, const openvdb::Vec3d &origin = openvdb::Vec3d(0.0, 0.0, 0.0))
+			void insertCone(const float& amplitude, const float& length, const openvdb::Vec3d& direction, const U &intensity, const openvdb::Vec3d& origin = openvdb::Vec3d(0.0, 0.0, 0.0))
 			{
 				if (length <= 0.0)
 					std::cerr << "[AddCone]: The cone length cannot be less than or equal to zero! Aborting!" << std::endl;
@@ -354,7 +385,7 @@ namespace map_handler
 					using CurrentTreeType = typename GridT::TreeType;
 
 					float theta = amplitude / 2.0;
-					int i_end = std::ceil(length / voxel_size_);
+					int i_end = std::ceil(length/voxel_size_);
 
 					openvdb::Vec3d idx_space_origin = grid_->worldToIndex(origin);
 
@@ -400,7 +431,7 @@ namespace map_handler
 			}
 
 			template <class U>
-			void insertSphere(const float &radius, const U &intensity, const openvdb::Vec3d &centre = openvdb::Vec3d(0.0,0.0,0.0))
+			void insertSphere(const float& radius, const U &intensity, const openvdb::Vec3d& centre = openvdb::Vec3d(0.0,0.0,0.0))
 			{
 				if (radius <= 0.0)
 					std::cerr << "[AddSphere]: The radius cannot be less than or equal to zero! Aborting!" << std::endl;
@@ -450,11 +481,9 @@ namespace map_handler
 						kernel(tbb_iteration_range);
 				}
 			}
-			/* -------------------------------------------------------------------------- */
 
-			/* --------------------------------- Pyramid -------------------------------- */
 			template <class U>
-			void insertPyramid(const float& amplitude_h,const float& amplitude_v,const float& length, const openvdb::Vec3d &direction, const U &intensity, const openvdb::Vec3d &origin = openvdb::Vec3d(0.0, 0.0, 0.0))
+			void insertPyramid(const float& amplitude_h, const float& amplitude_v, const float& length, const openvdb::Vec3d& direction, const U& intensity, const openvdb::Vec3d& origin = openvdb::Vec3d(0.0, 0.0, 0.0))
 			{
 				if (length <= 0.0)
 					std::cerr << "[AddPyramid]: The cone length cannot be less than or equal to zero! Aborting!" << std::endl;
@@ -464,7 +493,7 @@ namespace map_handler
 
 					float theta_h = amplitude_h/2.0;
 					float theta_v = amplitude_v/2.0;
-					int i_end = std::ceil(length / voxel_size_);
+					int i_end = std::ceil(length/voxel_size_);
 
 					openvdb::Vec3d idx_space_origin = grid_->worldToIndex(origin);
 
@@ -485,7 +514,7 @@ namespace map_handler
 						CurrentTreeType &tree = (threaded_) ? tbb_thread_pool.local() : grid_->tree();
 
 						for (idx_i = iteration_range.begin(); idx_i != iteration_range.end(); ++idx_i)
-							pyramidCore(tree,idx_i, idx_j, idx_k, theta_h, theta_v, idx_space_origin, rotation_quat, intensity);
+							pyramidCore(tree, idx_i,  idx_j, idx_k, theta_h, theta_v, idx_space_origin, rotation_quat, intensity);
 					};
 
 
@@ -509,7 +538,64 @@ namespace map_handler
 						kernel(tbb_iteration_range);
 				}
 			}
+
+			template <class U>
+			void insertBox(const float& amplitude_h, const float& amplitude_v, const float& length, const U& intensity, const openvdb::Vec3d& centre = openvdb::Vec3d(0.0, 0.0, 0.0))
+			{
+				if(amplitude_h < 0 || amplitude_v < 0 || length < 0)
+					std::cerr << "[AddBox]: The Box length/amplitude cannot be less than zero! Aborting! Aborting!" << std::endl;
+				else
+				{
+					using CurrentTreeType = typename GridT::TreeType;
+
+					/* ----------- Compute the maximum and minimum value of i,j, and k ---------- */
+					openvdb::Vec3d half_sizes = 0.5*openvdb::Vec3d(length, amplitude_h, amplitude_v);
+
+					openvdb::Vec3d xyz_min_value_ws = centre - half_sizes;
+					openvdb::Vec3d xyz_min_value_is = grid_->worldToIndex(xyz_min_value_ws);
+					openvdb::Coord ijk_min(static_cast<int>(xyz_min_value_is[0]),static_cast<int>(xyz_min_value_is[1]),static_cast<int>(xyz_min_value_is[2]));
+
+					openvdb::Vec3d xyz_max_value = centre + half_sizes;
+					openvdb::Vec3d xyz_max_value_is = grid_->worldToIndex(xyz_max_value);
+					openvdb::Coord ijk_max(static_cast<int>(xyz_max_value_is[0]),static_cast<int>(xyz_max_value_is[1]),static_cast<int>(xyz_max_value_is[2]));
+					/* -------------------------------------------------------------------------- */
+
+					tbb::enumerable_thread_specific<CurrentTreeType> tbb_thread_pool(grid_->tree());
+					tbb::blocked_range<int> tbb_iteration_range(ijk_min[0],ijk_max[0],sizeof(ijk_max[0]));
+
+					auto kernel = [&](const tbb::blocked_range<int> &iteration_range)
+					{
+						int idx_i = 0;
+						CurrentTreeType &tree = (threaded_) ? tbb_thread_pool.local() : grid_->tree();
+
+						for (idx_i = iteration_range.begin(); idx_i != iteration_range.end(); ++idx_i)
+							boxCore(tree, idx_i, ijk_min, ijk_max, intensity);
+					};
+
+					if(threaded_)
+					{
+						tbb::parallel_for(tbb_iteration_range,kernel);
+						using RangeT = tbb::blocked_range<typename tbb::enumerable_thread_specific<CurrentTreeType>::iterator>;
+						struct Op {
+				            const bool mDelete;
+				            CurrentTreeType *mTree;
+				            Op(CurrentTreeType &tree) : mDelete(false), mTree(&tree) {}
+				            Op(const Op& other, tbb::split) : mDelete(true), mTree(new CurrentTreeType(other.mTree->background())){}
+				            ~Op() { if (mDelete) delete mTree; }
+				            void operator()(const RangeT &r) { for (auto i=r.begin(); i!=r.end(); ++i) this->merge(*i);}
+				            void join(Op &other) { this->merge(*(other.mTree)); }
+				            void merge(CurrentTreeType &tree) { mTree->merge(tree, openvdb::MERGE_ACTIVE_STATES);}
+				        } op(grid_->tree());
+				        tbb::parallel_reduce(RangeT(tbb_thread_pool.begin(), tbb_thread_pool.end()), op);
+					}
+					else
+						kernel(tbb_iteration_range);
+				}
+			}
 			/* -------------------------------------------------------------------------- */
+
+			
+
 
 			/* ------------------------------- PointCloud ------------------------------- */
 			void updateFromPointCloud(const sensor_msgs::msg::PointCloud2& pointCloud2_msg)
@@ -528,8 +614,7 @@ namespace map_handler
 			}
 			/* -------------------------------------------------------------------------- */
 
-			void insertBox();
-
+			
 			void setFixedFrame(const std::string fixed_frame);
 			void setMapFrame(const std::string map_frame);
 
