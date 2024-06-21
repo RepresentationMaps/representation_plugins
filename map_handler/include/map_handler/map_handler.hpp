@@ -8,10 +8,13 @@
 #include <cmath>
 #include <type_traits> 
 #include <algorithm>
+#include <chrono>
+#include <ctime> 
 
 #include <openvdb/openvdb.h>
 
 #include <tbb/enumerable_thread_specific.h>
+#include <tbb/blocked_range2d.h>
 #include <tbb/blocked_range3d.h>
 #include <tbb/parallel_for.h>
 #include <tbb/parallel_for_each.h>
@@ -21,13 +24,12 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/approximate_voxel_grid.h>
 
+#include <opencv2/imgproc/imgproc.hpp>
+
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
 #include "map_handler/fov.hpp"
-
-#include <chrono>
-#include <ctime> 
 /* -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- */
@@ -70,7 +72,8 @@ namespace map_handler
 					return a[0] < b[0];
 			}
 
-			void createFromPointCloud(const sensor_msgs::msg::PointCloud2& pointCloud2_msg)
+			template <class U>
+			void createFromPointCloud(const sensor_msgs::msg::PointCloud2& pointCloud2_msg, const U &intensity)
 			{
 				auto start = std::chrono::system_clock::now();
 				using GridAccessorType = typename GridT::Accessor;
@@ -86,41 +89,6 @@ namespace map_handler
 				approx_voxel_grid.setLeafSize(voxel_size_,voxel_size_,voxel_size_);
 				approx_voxel_grid.filter(*cloud_filtered);
 
-				// sensor_msgs::msg::PointCloud2 cloud_filtered_msg;
-  				// pcl::toROSMsg(*cloud_filtered,cloud_filtered_msg);
-				// sensor_msgs::PointCloud2Iterator<float> ros_pc2_x(cloud_filtered_msg, "x");
-				// sensor_msgs::PointCloud2Iterator<float> ros_pc2_y(cloud_filtered_msg, "y");
-				// sensor_msgs::PointCloud2Iterator<float> ros_pc2_z(cloud_filtered_msg, "z");
-
-				// std::vector<Eigen::Vector3d> points;
-
-				// for(size_t i = 0; i < (cloud_filtered->height * cloud_filtered->width); ++i, ++ros_pc2_x, ++ros_pc2_y, ++ros_pc2_z)
-				// {
-				//    // Reject NAN points
-				//   if (std::isnan(*ros_pc2_x) || std::isnan(*ros_pc2_y) || std::isnan(*ros_pc2_z))
-				//     continue;
-				//   else
-				//     points.push_back(Eigen::Vector3d(*ros_pc2_x,*ros_pc2_y,*ros_pc2_z));
-				// }
-
-				// Sort the vector of Eigen vectors based on the Euclidean norm
-    			// std::sort(points.begin(), points.end(), compareVectors);
-				// std::vector<std::vector<Eigen::Vector3d>> points_blocks;
-
-				// points_blocks.push_back(std::vector<Eigen::Vector3d>());
-				// points_blocks[0].push_back(points[0]);
-
-				// int idx = 0;
-				// for(int i = 1; i < static_cast<int>(points.size()); i++)
-				// {
-				// 	if(points[i-1][0] != points[i][0])
-				// 	{
-				// 		idx++;
-				// 		points_blocks.push_back(std::vector<Eigen::Vector3d>());
-				// 	}
-
-				// 	points_blocks[idx].push_back(points[i]);
-				// }
 
 				tbb::enumerable_thread_specific<CurrentTreeType> tbb_thread_pool(grid_->tree());
 				tbb::blocked_range<std::vector<pcl::PointXYZRGB, Eigen::aligned_allocator<pcl::PointXYZRGB>>::iterator> tbb_iteration_range(cloud_filtered->points.begin(),cloud_filtered->points.end(),sizeof(cloud_filtered->points.begin()));
@@ -129,41 +97,25 @@ namespace map_handler
 				{
 					CurrentTreeType &tree = (threaded_) ? tbb_thread_pool.local() : grid_->tree();
 					GridAccessorType accessor(tree);
-					int value = 0;
 					for(auto it_ = iteration_range.begin(); it_ != iteration_range.end(); ++it_)
 					{
-						++value;
-						openvdb::Vec3d coordinates = grid_->worldToIndex(openvdb::Vec3d(it_->x,it_->y,it_->z));
-						openvdb::Coord ijk(static_cast<int>(round(coordinates[0])), static_cast<int>(round(coordinates[1])), static_cast<int>(round(coordinates[2])));
-						accessor.setValue(ijk, 1);
+						if(std::isnan(it_->x) == false && std::isnan(it_->y) == false && std::isnan(it_->z) == false)
+						{
+							openvdb::Vec3d coordinates = grid_->worldToIndex(openvdb::Vec3d(it_->x,it_->y,it_->z));
+							openvdb::Coord ijk(static_cast<int>(round(coordinates[0])), static_cast<int>(round(coordinates[1])), static_cast<int>(round(coordinates[2])));
+
+							if constexpr(std::is_invocable_v<U,double,double,double>)
+							{
+								double value = std::invoke(intensity,it_->x,it_->y,it_->z);
+								if(value > 0)
+									accessor.setValue(ijk,value);
+							}
+							else
+								accessor.setValue(ijk,intensity);
+							
+						}
 					}
-					std::cout << value << std::endl;
 				};
-
-				// tbb::blocked_range<int> tbb_iteration_range(0,static_cast<int>(points_blocks.size()));
-
-				// auto kernel = [&](const tbb::blocked_range<int> &iteration_range)
-				// {
-				// 	int idx_x = 0;
-
-				// 	CurrentTreeType &tree = (threaded_) ? tbb_thread_pool.local() : grid_->tree();
-				// 	GridAccessorType accessor(tree);
-
-				// 	int value = 0;
-
-				// 	for(idx_x = iteration_range.begin(); idx_x != iteration_range.end(); ++idx_x)
-				// 	{
-						
-				// 		++value;
-				// 		for(int j = 0; j <= static_cast<int>(points_blocks[idx_x].size()); ++j)
-				// 		{
-				// 			openvdb::Vec3d coordinates = grid_->worldToIndex(openvdb::Vec3d(points_blocks[idx_x][j][0],points_blocks[idx_x][j][1],points_blocks[idx_x][j][2]));
-				// 			openvdb::Coord ijk(static_cast<int>(round(coordinates[0])), static_cast<int>(round(coordinates[1])), static_cast<int>(round(coordinates[2])));
-				// 			accessor.setValue(ijk, 1);
-				// 		}
-				// 	}
-				// 	std::cout << value << std::endl;
-				// };
 
 				if(threaded_)
 				{
@@ -187,6 +139,87 @@ namespace map_handler
 				auto end = std::chrono::system_clock::now();
 				std::chrono::duration<double> elapsed_seconds = end-start;
 				std::cout << "elapsed time: " << elapsed_seconds.count() << "s" << std::endl;
+			}
+			
+			template <class U>
+			void createFromAlignedDepth(const cv::Mat& aligned_depth_image, const cv::Mat& int_cam_matrix, const U &intensity)
+			{
+				auto start = std::chrono::system_clock::now();
+				using GridAccessorType = typename GridT::Accessor;
+				using CurrentTreeType = typename GridT::TreeType;
+
+				tbb::enumerable_thread_specific<CurrentTreeType> tbb_thread_pool(grid_->tree());
+				tbb::blocked_range2d<int> tbb_iteration_range(0, aligned_depth_image.rows - 1, 0, aligned_depth_image.cols - 1);
+
+				auto kernel = [&](const tbb::blocked_range2d<int> &iteration_range)
+				{
+					CurrentTreeType &tree = (threaded_) ? tbb_thread_pool.local() : grid_->tree();
+					GridAccessorType accessor(tree);
+
+					for(int row = iteration_range.rows().begin(); row != iteration_range.rows().end(); ++row)
+						for(int col = iteration_range.cols().begin(); col != iteration_range.cols().end(); ++col)
+						{
+							if constexpr(std::is_invocable_v<U,int,int>)
+							{
+								/* ------------------------------- First Check ------------------------------ */
+								uint16_t z = aligned_depth_image.at<uint16_t>(row, col);
+
+
+								if(z != 0)
+								{
+									/* --------------------------- Compute Coordinates -------------------------- */
+									double fx_inv = 1.0/int_cam_matrix.at<float>(0,0);
+									double cx = int_cam_matrix.at<float>(0,2);
+									double fy_inv = 1.0/int_cam_matrix.at<float>(1,1);
+									double cy = int_cam_matrix.at<float>(1,2);
+
+									double z_metric = z*0.001;									
+									double x_metric = z_metric*((col - cx) * fx_inv);
+									double y_metric = z_metric*((row - cy) * fy_inv);
+									/* -------------------------------------------------------------------------- */
+									
+									/* ------------------------------ Second Check ------------------------------ */
+									if(std::isnan(x_metric) == false && std::isnan(y_metric) == false && std::isnan(z_metric) == false)
+									{
+										int value = std::invoke(intensity,row,col);
+
+										/* ------------------------------- third Check ------------------------------ */
+										if(value != 0)
+										{
+											openvdb::Vec3d coordinates = grid_->worldToIndex(openvdb::Vec3d(x_metric,y_metric,z_metric));
+											openvdb::Coord ijk(static_cast<int>(round(coordinates[0])), static_cast<int>(round(coordinates[1])), static_cast<int>(round(coordinates[2])));
+
+											accessor.setValue(ijk,value);
+										}
+										/* -------------------------------------------------------------------------- */
+									}
+									/* -------------------------------------------------------------------------- */
+								}
+								/* -------------------------------------------------------------------------- */
+							}
+							  
+						}
+
+				};
+
+				if(threaded_)
+				{
+					tbb::parallel_for(tbb_iteration_range,kernel);
+					using RangeT = tbb::blocked_range<typename tbb::enumerable_thread_specific<CurrentTreeType>::iterator>;
+					struct Op {
+				        const bool mDelete;
+				        CurrentTreeType *mTree;
+				        Op(CurrentTreeType &tree) : mDelete(false), mTree(&tree) {}
+				        Op(const Op& other, tbb::split) : mDelete(true), mTree(new CurrentTreeType(other.mTree->background())){}
+				        ~Op() { if (mDelete) delete mTree; }
+				        void operator()(const RangeT &r) { for (auto i=r.begin(); i!=r.end(); ++i) this->merge(*i);}
+				        void join(Op &other) { this->merge(*(other.mTree)); }
+				        void merge(CurrentTreeType &tree) { mTree->merge(tree, openvdb::MERGE_ACTIVE_STATES);}
+				    } op(grid_->tree());
+				    tbb::parallel_reduce(RangeT(tbb_thread_pool.begin(), tbb_thread_pool.end()), op);
+				}
+				else
+					kernel(tbb_iteration_range);
 			}
 			/* -------------------------------------------------------------------------- */
 
@@ -594,19 +627,27 @@ namespace map_handler
 			}
 			/* -------------------------------------------------------------------------- */
 
-			
-
 
 			/* ------------------------------- PointCloud ------------------------------- */
-			void updateFromPointCloud(const sensor_msgs::msg::PointCloud2& pointCloud2_msg)
+			template <class U>
+			void updateFromPointCloud(const sensor_msgs::msg::PointCloud2& pointCloud2_msg, const U &intensity)
 			{
 				grid_.reset();
 				grid_ = GridT::create();
 				grid_->setTransform(initial_transformation_);
-				createFromPointCloud(pointCloud2_msg);
+				createFromPointCloud(pointCloud2_msg, intensity);
+			}
+
+			template <class U>
+			void updateFromAlignedDepth(const cv::Mat& aligned_depth_image, const cv::Mat& int_cam_matrix, const U &intensity)
+			{
+				grid_.reset();
+				grid_ = GridT::create();
+				grid_->setTransform(initial_transformation_);
+				createFromAlignedDepth(aligned_depth_image, int_cam_matrix, intensity);
 			}
 			/* -------------------------------------------------------------------------- */
-
+			
 			/* ----------------------------------- Get ---------------------------------- */
 			std::shared_ptr<GridT> getGridPtr()
 			{
