@@ -25,17 +25,20 @@ int main(int argc, char ** argv){
   double d_min = 0.5;
   double d_max = 5.0;
 
-  tf2::Vector3 axis(0.0, 0.0, 1.0);
+  tf2::Vector3 axis(1.0, 1.0, 0.0);
 
 	map_handler::fov::FrustumFOV frustum(tf_buffer,
 					   h_fov, v_fov, d_min, d_max,
 					   axis);
+  std::string ref_frame = "world";
+  frustum.setReferenceFrame(ref_frame);
 
   frustum.setupDebuggingInterface(node, "world");
 
   rclcpp::Rate loop_rate(5);
 
   while(rclcpp::ok()){
+    rclcpp::spin_some(node);
     frustum.publishDebugginMessage();
     loop_rate.sleep();
   }

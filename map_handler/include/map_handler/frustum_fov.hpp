@@ -27,12 +27,17 @@ namespace map_handler{
 															  // first = plane point, second = plane normal
 				std::vector<tf2::Vector3> vertices_; // a, b, c, d, e, f, g, h
 
-				std::shared_ptr<rclcpp::Node> node_;
+				std::shared_ptr<rclcpp::Node> node_; // node interface to create the marker publisher
 
-				rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr debug_viz_pub_;
-				visualization_msgs::msg::Marker frustum_msg_;
+				rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr debug_viz_pub_; // debugging publisher - frustum
+				rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr debug_point_viz_pub_; // debugging publisher - frustum
+				visualization_msgs::msg::Marker frustum_msg_; // debugging marker message - frustum
+				visualization_msgs::msg::Marker point_to_check_; // debugging marker message - point to check
+				rclcpp::Subscription<geometry_msgs::msg::PointStamped>::SharedPtr set_point_sub_;
 
 				void generateDebuggingMessage(const std::string & ref_frame);
+
+				void pointToTestCb(const geometry_msgs::msg::PointStamped::SharedPtr msg);
 
 			public:
 				FrustumFOV(std::shared_ptr<tf2_ros::Buffer> tf_buffer,
@@ -40,20 +45,7 @@ namespace map_handler{
 						   const double & d_min, const double & d_max,
 						   const tf2::Vector3 & axis);
 
-				template <class T>
-				bool inFovPoint(const T & point){
-					tf2::Vector3 point_vec(point.x, point.y, point.z);
-					tf2::Vector3 comparison_vec;
-					for (auto& plane: planes_){
-						comparison_vec = point_vec-plane.first;
-						comparison_vec.normalize();
-						double cos_theta = comparison_vec.dot(plane.second);
-						if (cos_theta < 0){
-							return false;
-						}
-					}
-					return true;
-				}
+				bool inFovPoint(const double & x, const double & y, const double & z);
 
 				void setupDebuggingInterface(std::shared_ptr<rclcpp::Node> node,
 											 const std::string & ref_frame);
@@ -61,10 +53,7 @@ namespace map_handler{
 				inline void publishDebugginMessage(){
 					frustum_msg_.header.stamp = node_->get_clock()->now();
 					debug_viz_pub_->publish(frustum_msg_);
-				}
-
-				bool inFovPoint(const geometry_msgs::msg::PointStamped & point){
-					return true;
+					debug_point_viz_pub_->publish(point_to_check_);
 				}
 		};
 	}

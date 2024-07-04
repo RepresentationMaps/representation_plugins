@@ -1,5 +1,8 @@
 #include <cmath>
 #include <utility>
+#include <functional>
+
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include <geometry_msgs/msg/point.hpp>
 
@@ -80,28 +83,28 @@ namespace map_handler{
 
 				// 5.6 we compute the rotated limits
 				tf2::Vector3 a, b, c, d, e, f, g, h;
-				a = center_min-ab-bc;
+				a = center_min+ab-bc;
 				a = tf2::quatRotate(quaternion_, a);
 				vertices_.push_back(a);
-				b = center_min+ab-bc;
+				b = center_min-ab-bc;
 				b = tf2::quatRotate(quaternion_, b);
 				vertices_.push_back(b);
-				c = center_min+ab+bc;
+				c = center_min-ab+bc;
 				c = tf2::quatRotate(quaternion_, c);
 				vertices_.push_back(c);
-				d = center_min-ab+bc;
+				d = center_min+ab+bc;
 				d = tf2::quatRotate(quaternion_, d);
 				vertices_.push_back(d);
-				e = center_max-ef-fg;
+				e = center_max+ef-fg;
 				e = tf2::quatRotate(quaternion_, e);
 				vertices_.push_back(e);
-				f = center_max+ef-fg;
+				f = center_max-ef-fg;
 				f = tf2::quatRotate(quaternion_, f);
 				vertices_.push_back(f);
-				g = center_max+ef+fg;
+				g = center_max-ef+fg;
 				g = tf2::quatRotate(quaternion_, g);
 				vertices_.push_back(g);
-				h = center_max-ef+fg;
+				h = center_max+ef+fg;
 				h = tf2::quatRotate(quaternion_, h);
 				vertices_.push_back(h);
 
@@ -148,6 +151,20 @@ namespace map_handler{
 				planes_.insert(planes_.begin(), std::make_pair<tf2::Vector3, tf2::Vector3>(std::move(c), std::move(p)));
 
 				// At this point, we completed the limits of the volume and its faces normals, pointing internally
+		}
+
+		bool FrustumFOV::inFovPoint(const double & x, const double & y, const double & z){
+			tf2::Vector3 point_vec(x, y, z);
+			tf2::Vector3 comparison_vec;
+			for (auto& plane: planes_){
+				comparison_vec = point_vec-plane.first;
+				comparison_vec.normalize();
+				double cos_theta = comparison_vec.dot(plane.second);
+				if (cos_theta < 0){
+					return false;
+				}
+			}
+			return true;
 		}
 
 		void FrustumFOV::generateDebuggingMessage(const std::string & ref_frame){
@@ -230,15 +247,75 @@ namespace map_handler{
 			p2.x = vertices_[7][0]; p2.y = vertices_[7][1]; p2.z = vertices_[7][2];
 			frustum_msg_.points.push_back(p1);
 			frustum_msg_.points.push_back(p2);
+			
+			// Now creating the marker object 
+			// for the point to evaluate whether in or out of the frustum
+			point_to_check_.header.frame_id = ref_frame;
+
+			point_to_check_.type = visualization_msgs::msg::Marker::SPHERE;
+			
+			point_to_check_.action = visualization_msgs::msg::Marker::ADD;
+
+			point_to_check_.scale.x = 0.1;
+			point_to_check_.scale.y = 0.1;
+			point_to_check_.scale.z = 0.1;
+
+			point_to_check_.pose.position.x = 0.0;
+			point_to_check_.pose.position.y = 0.0;
+			point_to_check_.pose.position.z = 0.0;
+
+			point_to_check_.pose.orientation.x = 0.0;
+			point_to_check_.pose.orientation.y = 0.0;
+			point_to_check_.pose.orientation.z = 0.0;
+			point_to_check_.pose.orientation.w = 1.0;
+
+			point_to_check_.color.r = 1.0;
+			point_to_check_.color.g = 0.0;
+			point_to_check_.color.b = 0.0;
+			point_to_check_.color.a = 1.0;
+
+			point_to_check_.frame_locked = true;
 		}
 
 		void FrustumFOV::setupDebuggingInterface(std::shared_ptr<rclcpp::Node> node, const std::string & ref_frame){
 			node_ = node;
 			debug_viz_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("frustum", 1);
+			debug_point_viz_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("point", 1);
+			set_point_sub_ = node->create_subscription<geometry_msgs::msg::PointStamped>(
+				"point_to_check", 1, std::bind(&FrustumFOV::pointToTestCb, this, std::placeholders::_1));
 
 			// generate the debugging visualization message
 			generateDebuggingMessage(ref_frame);
 			frustum_msg_.header.stamp = node->get_clock()->now();
+		}
+
+		void FrustumFOV::pointToTestCb(const geometry_msgs::msg::PointStamped::SharedPtr msg){
+			geometry_msgs::msg::PointStamped transformed_point;
+
+			if (msg->header.frame_id != ref_frame_){
+				try {
+			    	auto target_tf = tf_buffer_->lookupTransform(
+			    		msg->header.frame_id, ref_frame_, rclcpp::Time(0, 0));
+			    	tf2::doTransform(*msg, transformed_point, target_tf);
+				} catch (tf2::TransformException & ex) {
+			  		RCLCPP_ERROR(node_->get_logger(), "could not transform sellion_target point:\n%s", ex.what());
+			  		return;
+			  	}
+			} else {
+				transformed_point.point = msg->point;
+			}
+
+		  	point_to_check_.pose.position.x = transformed_point.point.x;
+		  	point_to_check_.pose.position.y = transformed_point.point.y;
+		  	point_to_check_.pose.position.z = transformed_point.point.z;
+
+		  	if (inFovPoint(transformed_point.point.x, transformed_point.point.y, transformed_point.point.z)){
+		  		point_to_check_.color.r = 0.0;
+		  		point_to_check_.color.g = 1.0;
+		  	} else {
+		  		point_to_check_.color.r = 1.0;
+		  		point_to_check_.color.g = 0.0;
+		  	}
 		}
 	}
 }

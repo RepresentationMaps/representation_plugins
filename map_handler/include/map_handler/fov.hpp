@@ -12,6 +12,7 @@
 namespace map_handler{
 	namespace fov{
 		class FOV{
+			protected:
 				std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
 				std::string ref_frame_;
@@ -19,7 +20,7 @@ namespace map_handler{
 				FOV(std::shared_ptr<tf2_ros::Buffer> tf_buffer):
 					tf_buffer_(tf_buffer){}
 
-				virtual bool inFovPoint(const geometry_msgs::msg::PointStamped & point) = 0;
+				virtual bool inFovPoint(const double & x, const double & y, const double & z) = 0;
 
 				void setReferenceFrame(const std::string & ref_frame){
 					ref_frame_ = ref_frame;
