@@ -12,6 +12,7 @@
 #include <ctime> 
 
 #include <openvdb/openvdb.h>
+#include <openvdb/tree/ValueAccessor.h>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/blocked_range2d.h>
@@ -26,6 +27,7 @@
 
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include <sensor_msgs/image_encodings.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
@@ -65,11 +67,6 @@ namespace map_handler
 			static float computeDistance(const openvdb::Vec3d& a, const openvdb::Vec3d& b)
 			{
 				return std::sqrt(std::pow(a[0] - b[0],2) + std::pow(a[1] - b[1],2) + std::pow(a[2] - b[2],2));
-			}
-
-			static bool compareVectors(const Eigen::Vector3d& a, const Eigen::Vector3d& b)
-			{
-					return a[0] < b[0];
 			}
 
 			template <class U>
@@ -142,7 +139,7 @@ namespace map_handler
 			}
 			
 			template <class U>
-			void createFromAlignedDepth(const cv::Mat& aligned_depth_image, const cv::Mat& int_cam_matrix, const U &intensity)
+			void createFromAlignedDepth(const cv::Mat& aligned_depth_image, const cv::Mat& intrinsic_cam_matrix, const U &intensity, const bool& set_transient, const std::string& depth_image_encoding)
 			{
 				auto start = std::chrono::system_clock::now();
 				using GridAccessorType = typename GridT::Accessor;
@@ -156,47 +153,71 @@ namespace map_handler
 					CurrentTreeType &tree = (threaded_) ? tbb_thread_pool.local() : grid_->tree();
 					GridAccessorType accessor(tree);
 
+					double fx_inv = 1.0 / intrinsic_cam_matrix.at<float>(0, 0);
+					double cx = intrinsic_cam_matrix.at<float>(0, 2);
+					double fy_inv = 1.0 / intrinsic_cam_matrix.at<float>(1, 1);
+					double cy = intrinsic_cam_matrix.at<float>(1, 2);
+
+					double z_metric;
+					double x_metric;
+					double y_metric;
+
 					for(int row = iteration_range.rows().begin(); row != iteration_range.rows().end(); ++row)
 						for(int col = iteration_range.cols().begin(); col != iteration_range.cols().end(); ++col)
 						{
-							if constexpr(std::is_invocable_v<U,int,int>)
+							/* --------------------------- Compute Coordinates -------------------------- */
+							if (std::strcmp(depth_image_encoding.c_str(),sensor_msgs::image_encodings::TYPE_32FC1) == 0)
+								z_metric = aligned_depth_image.at<uint32_t>(row, col) * 0.001;
+							else
+								z_metric = aligned_depth_image.at<uint16_t>(row, col) * 0.001;
+
+							double x_metric = z_metric * ((col - cx) * fx_inv);
+							double y_metric = z_metric * ((row - cy) * fy_inv);
+							/* -------------------------------------------------------------------------- */
+
+							/* ---------------------------------- Check --------------------------------- */
+							if(std::isnan(x_metric) == false && std::isnan(y_metric) == false && std::isnan(z_metric) == false)
 							{
-								/* ------------------------------- First Check ------------------------------ */
-								uint16_t z = aligned_depth_image.at<uint16_t>(row, col);
+								/* --------------------------- OpenVDB Coordinates -------------------------- */
+								openvdb::Vec3d coordinates = grid_->worldToIndex(openvdb::Vec3d(x_metric,y_metric,z_metric));
+								openvdb::Coord ijk(static_cast<int>(round(coordinates[0])), static_cast<int>(round(coordinates[1])), static_cast<int>(round(coordinates[2])));
+								/* -------------------------------------------------------------------------- */
 
-
-								if(z != 0)
+								/* ---------------------------------- Fill ---------------------------------- */
+								if constexpr(std::is_invocable_v<U,int,int>)
 								{
-									/* --------------------------- Compute Coordinates -------------------------- */
-									double fx_inv = 1.0/int_cam_matrix.at<float>(0,0);
-									double cx = int_cam_matrix.at<float>(0,2);
-									double fy_inv = 1.0/int_cam_matrix.at<float>(1,1);
-									double cy = int_cam_matrix.at<float>(1,2);
-
-									double z_metric = z*0.001;									
-									double x_metric = z_metric*((col - cx) * fx_inv);
-									double y_metric = z_metric*((row - cy) * fy_inv);
-									/* -------------------------------------------------------------------------- */
-									
-									/* ------------------------------ Second Check ------------------------------ */
-									if(std::isnan(x_metric) == false && std::isnan(y_metric) == false && std::isnan(z_metric) == false)
+									auto value = std::invoke(intensity,row,col);
+									if(value != -1)
 									{
-										int value = std::invoke(intensity,row,col);
-
-										/* ------------------------------- third Check ------------------------------ */
-										if(value != 0)
+										if(set_transient)
 										{
-											openvdb::Vec3d coordinates = grid_->worldToIndex(openvdb::Vec3d(x_metric,y_metric,z_metric));
-											openvdb::Coord ijk(static_cast<int>(round(coordinates[0])), static_cast<int>(round(coordinates[1])), static_cast<int>(round(coordinates[2])));
+											/* ---------------------------- Voxel Activation ---------------------------- */
+											accessor.setActiveState(ijk,true);
+											/* -------------------------------------------------------------------------- */
 
-											accessor.setValue(ijk,value);
+											/* --------------------------- Leaf Transient Data -------------------------- */
+											auto* leaf_ptr = accessor.probeLeaf(ijk); 
+											if(leaf_ptr)
+											{
+												/* ------------------------------ Voxel Filling ----------------------------- */
+												accessor.setValue(ijk,1);
+												/* -------------------------------------------------------------------------- */
+
+												/* ----------------------------- Transient Data ----------------------------- */
+												accessor.probeLeaf(ijk)->setTransientData(value);
+												/* -------------------------------------------------------------------------- */
+											}
+											else
+												accessor.setActiveState(ijk,false);
+											/* -------------------------------------------------------------------------- */
 										}
-										/* -------------------------------------------------------------------------- */
+										else
+											accessor.setValue(ijk,value);
 									}
-									/* -------------------------------------------------------------------------- */
 								}
 								/* -------------------------------------------------------------------------- */
 							}
+							/* -------------------------------------------------------------------------- */
 							  
 						}
 
@@ -223,12 +244,14 @@ namespace map_handler
 			}
 			/* -------------------------------------------------------------------------- */
 
-			/* ---------------------------------- Cores --------------------------------- */
+			/* -----------s----------------------- Cores --------------------------------- */
 			template<class TreeT, class U>
-			void coneCore(TreeT& tree, const int& i, int& j, int& k, const double& theta, const openvdb::Vec3d& idx_space_origin, const openvdb::math::Quatd& rotation_quat, const U& intensity)
+			void coneCore(TreeT& tree, const int& i, int& j, int& k, const double& theta, const openvdb::Vec3d& idx_space_origin, const openvdb::math::Quatd& rotation_quat, const U& intensity, const bool& set_transient)
 			{
 				using GridAccessorType = typename openvdb::Grid<TreeT>::Accessor;
 				GridAccessorType accessor(tree);
+
+				std::cout << "/* -------------------------------- Cone Core ------------------------------- */" << std::endl;
 
 				openvdb::Vec3d x = grid_->indexToWorld(openvdb::Coord(i,0,0));
 				int j_start = -(static_cast<int>(std::tan(theta)*x.length()/voxel_size_));
@@ -246,20 +269,61 @@ namespace map_handler
 							current_point = current_point + idx_space_origin;
 
 							openvdb::Coord ijk (static_cast<int>(std::round(current_point[0])),static_cast<int>(std::round(current_point[1])),static_cast<int>(std::round(current_point[2])));
+							
+							if(set_transient)
+							{
+								/* ---------------------------- Voxel Activation ---------------------------- */
+								accessor.setActiveState(ijk,true);
+								/* -------------------------------------------------------------------------- */
 
-							if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
-								accessor.setValue(ijk,std::invoke(intensity,grid_->indexToWorld(ijk)));
+								/* --------------------------- Leaf Transient Data -------------------------- */
+								auto* leaf_ptr = accessor.probeLeaf(ijk);
+
+								if(leaf_ptr != nullptr)
+								{
+									/* ------------------------------ Voxel Filling ----------------------------- */
+									accessor.setValue(ijk, 1);
+									/* -------------------------------------------------------------------------- */
+
+									/* ----------------------------- Transient Data ----------------------------- */
+									if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
+										leaf_ptr->setTransientData(std::invoke(intensity,grid_->indexToWorld(ijk)));
+									else
+										leaf_ptr->setTransientData(intensity);
+									/* -------------------------------------------------------------------------- */
+
+									std::cout << leaf_ptr->transientData() << std::endl;
+								}
+								else
+									/* --------------------------- Voxel Deactivation --------------------------- */
+									accessor.setActiveState(ijk,false);
+									/* -------------------------------------------------------------------------- */
+
+								/* -------------------------------------------------------------------------- */
+							}
 							else
-								accessor.setValue(ijk,intensity);
+							{
+								/* ------------------------------ Voxel Filling ----------------------------- */
+								if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
+									accessor.setValue(ijk,std::invoke(intensity,grid_->indexToWorld(ijk)));
+								else
+									accessor.setValue(ijk,intensity);
+								/* -------------------------------------------------------------------------- */
+							}
 						}
 					}
+
+				std::cout << "/* -------------------------------------------------------------------------- */" << std::endl;
 			}
 
 			template<class TreeT, class U>
-			void sphereCore(TreeT& tree, const int& idx_i, const openvdb::Coord& ijk_min, const openvdb::Coord& ijk_max, const float& radius, const openvdb::Vec3d& centre, const U& intensity)
+			void sphereCore(TreeT& tree, const int& idx_i, const openvdb::Coord& ijk_min, const openvdb::Coord& ijk_max, const float& radius, const openvdb::Vec3d& centre, const U& intensity,const bool& set_transient)
 			{
 				using GridAccessorType = typename openvdb::Grid<TreeT>::Accessor;
 				GridAccessorType accessor(tree);
+
+				
+				std::cout << "/* ------------------------------- Sphere Core ------------------------------ */" << std::endl;
 
 				for(int idx_j = ijk_min[1]; idx_j <= ijk_max[1]; ++idx_j)
 				{
@@ -270,20 +334,59 @@ namespace map_handler
 						float distance = computeDistance(centre,current_point);
 						if(distance <= radius)
 						{	
-							if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
-								accessor.setValue(ijk,std::invoke(intensity,current_point));
+							if(set_transient)
+							{
+								/* ---------------------------- Voxel Activation ---------------------------- */
+								accessor.setActiveState(ijk,true);
+								/* -------------------------------------------------------------------------- */
+
+								/* --------------------------- Leaf Transient Data -------------------------- */
+								auto* leaf_ptr = accessor.probeLeaf(ijk);
+
+								if(leaf_ptr != nullptr)
+								{
+									/* ------------------------------ Voxel Filling ----------------------------- */
+									accessor.setValue(ijk, 1);
+									/* -------------------------------------------------------------------------- */
+
+									/* ----------------------------- Transient Data ----------------------------- */
+									if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
+										leaf_ptr->setTransientData(std::invoke(intensity,grid_->indexToWorld(ijk)));
+									else
+										leaf_ptr->setTransientData(intensity);
+									/* -------------------------------------------------------------------------- */
+
+									std::cout << leaf_ptr->transientData() << std::endl;
+								}
+								else
+									/* --------------------------- Voxel Deactivation --------------------------- */
+									accessor.setActiveState(ijk,false);
+									/* -------------------------------------------------------------------------- */
+
+								/* -------------------------------------------------------------------------- */
+							}
 							else
-								accessor.setValue(ijk,intensity);
+							{
+								/* ------------------------------ Voxel Filling ----------------------------- */
+								if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
+									accessor.setValue(ijk,std::invoke(intensity,current_point));
+								else
+									accessor.setValue(ijk,intensity);
+								/* -------------------------------------------------------------------------- */
+							}
 						}
 					}
 				}
+				std::cout << "/* -------------------------------------------------------------------------- */" << std::endl;
 			}
 			
 			template<class TreeT, class U>
-			void pyramidCore(TreeT& tree, const int& i, int& j, int& k, const double& theta_h, const double& theta_v, const openvdb::Vec3d& idx_space_origin, const openvdb::math::Quatd& rotation_quat, const U& intensity)
+			void pyramidCore(TreeT& tree, const int& i, int& j, int& k, const double& theta_h, const double& theta_v, const openvdb::Vec3d& idx_space_origin, const openvdb::math::Quatd& rotation_quat, const U& intensity, const bool& set_transient)
 			{
 				using GridAccessorType = typename openvdb::Grid<TreeT>::Accessor;
 				GridAccessorType accessor(tree);
+				
+				std::cout << "/* ------------------------------ Pyramid Core ------------------------------ */" << std::endl;
 
 				openvdb::Vec3d x = grid_->indexToWorld(openvdb::Coord(i,0,0));
 				int j_start = -(static_cast<int>(std::tan(theta_h)*x.length()/voxel_size_));
@@ -306,31 +409,112 @@ namespace map_handler
 
 							openvdb::Coord ijk (static_cast<int>(std::round(current_point[0])),static_cast<int>(std::round(current_point[1])),static_cast<int>(std::round(current_point[2])));
 
-							if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
-								accessor.setValue(ijk,std::invoke(intensity,grid_->indexToWorld(ijk)));
+							if(set_transient)
+							{
+								/* ---------------------------- Voxel Activation ---------------------------- */
+								accessor.setActiveState(ijk,true);
+								/* -------------------------------------------------------------------------- */
+
+								/* --------------------------- Leaf Transient Data -------------------------- */
+								auto* leaf_ptr = accessor.probeLeaf(ijk);
+
+								if(leaf_ptr != nullptr)
+								{
+									/* ------------------------------ Voxel Filling ----------------------------- */
+									accessor.setValue(ijk, 1);
+									/* -------------------------------------------------------------------------- */
+
+									/* ----------------------------- Transient Data ----------------------------- */
+									if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
+										leaf_ptr->setTransientData(std::invoke(intensity,grid_->indexToWorld(ijk)));
+									else
+										leaf_ptr->setTransientData(intensity);
+									/* -------------------------------------------------------------------------- */
+
+
+									std::cout << leaf_ptr->transientData() << std::endl;
+								}
+								else
+									/* --------------------------- Voxel Deactivation --------------------------- */
+									accessor.setActiveState(ijk,false);
+									/* -------------------------------------------------------------------------- */
+
+								/* -------------------------------------------------------------------------- */
+							}
 							else
-								accessor.setValue(ijk,intensity);
+							{
+								/* ------------------------------ Voxel Filling ----------------------------- */
+								if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
+									accessor.setValue(ijk,std::invoke(intensity,grid_->indexToWorld(ijk)));
+								else
+									accessor.setValue(ijk,intensity);
+								/* -------------------------------------------------------------------------- */
+							}
 						}
 					}
+
+				std::cout << "/* -------------------------------------------------------------------------- */" << std::endl;
 			}
 
 			template<class TreeT, class U>
-			void boxCore(TreeT& tree, const int& idx_i, const openvdb::Coord& ijk_min, const openvdb::Coord& ijk_max, const U& intensity)
+			void boxCore(TreeT& tree, const int& idx_i, const openvdb::Coord& ijk_min, const openvdb::Coord& ijk_max, const U& intensity, const bool& set_transient)
 			{
 				using GridAccessorType = typename openvdb::Grid<TreeT>::Accessor;
 				GridAccessorType accessor(tree);
+
+				std::cout << "/* -------------------------------- Box Core -------------------------------- */" << std::endl;
 
 				for(int idx_j = ijk_min[1]; idx_j <= ijk_max[1]; ++idx_j)
 					for(int idx_k = ijk_min[2]; idx_k <= ijk_max[2]; ++idx_k)
 					{
 						openvdb::Coord ijk(idx_i,idx_j,idx_k);
 
-						if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
+						if(set_transient)
+						{
+							/* ---------------------------- Voxel Activation ---------------------------- */
+							accessor.setActiveState(ijk,true);
+							/* -------------------------------------------------------------------------- */
+
+							/* --------------------------- Leaf Transient Data -------------------------- */
+							auto* leaf_ptr = accessor.probeLeaf(ijk);
+
+							if(leaf_ptr != nullptr)
+							{
+								/* ------------------------------ Voxel Filling ----------------------------- */
+								accessor.setValue(ijk, 1);
+								/* -------------------------------------------------------------------------- */
+
+								/* ----------------------------- Transient Data ----------------------------- */
+								if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
+									leaf_ptr->setTransientData(std::invoke(intensity,grid_->indexToWorld(ijk)));
+								else
+									leaf_ptr->setTransientData(intensity);
+								/* -------------------------------------------------------------------------- */
+
+								std::cout << leaf_ptr->transientData() << std::endl;
+
+								
+							}
+							else
+								/* --------------------------- Voxel Deactivation --------------------------- */
+								accessor.setActiveState(ijk,false);
+								/* -------------------------------------------------------------------------- */
+
+							/* -------------------------------------------------------------------------- */
+						}
+						else
+						{
+							/* ------------------------------ Voxel Filling ----------------------------- */
+							if constexpr(std::is_invocable_v<U,const openvdb::Vec3d&>)
 								accessor.setValue(ijk,std::invoke(intensity,grid_->indexToWorld(ijk)));
 							else
 								accessor.setValue(ijk,intensity);
-					}
-						
+							/* -------------------------------------------------------------------------- */
+						}
+					}		
+
+				std::cout << "/* -------------------------------------------------------------------------- */" << std::endl;
+				
 			}
 		/* -------------------------------------------------------------------------- */
 
@@ -409,7 +593,7 @@ namespace map_handler
 			
 			/* --------------------------------- Insert --------------------------------- */
 			template <class U>
-			void insertCone(const float& amplitude, const float& length, const openvdb::Vec3d& direction, const U &intensity, const openvdb::Vec3d& origin = openvdb::Vec3d(0.0, 0.0, 0.0))
+			void insertCone(const float& amplitude, const float& length, const openvdb::Vec3d& direction, const U &intensity, const openvdb::Vec3d& origin = openvdb::Vec3d(0.0, 0.0, 0.0), const bool& set_transient = false)
 			{
 				if (length <= 0.0)
 					std::cerr << "[AddCone]: The cone length cannot be less than or equal to zero! Aborting!" << std::endl;
@@ -439,7 +623,7 @@ namespace map_handler
 						CurrentTreeType &tree = (threaded_) ? tbb_thread_pool.local() : grid_->tree();
 
 						for (idx_i = iteration_range.begin(); idx_i != iteration_range.end(); ++idx_i)
-							coneCore(tree,idx_i, idx_j, idx_k, theta, idx_space_origin, rotation_quat, intensity);
+							coneCore(tree,idx_i, idx_j, idx_k, theta, idx_space_origin, rotation_quat, intensity, set_transient);
 					};
 
 					if(threaded_)
@@ -464,7 +648,7 @@ namespace map_handler
 			}
 
 			template <class U>
-			void insertSphere(const float& radius, const U &intensity, const openvdb::Vec3d& centre = openvdb::Vec3d(0.0,0.0,0.0))
+			void insertSphere(const float& radius, const U &intensity, const openvdb::Vec3d& centre = openvdb::Vec3d(0.0,0.0,0.0), const bool& set_transient = false)
 			{
 				if (radius <= 0.0)
 					std::cerr << "[AddSphere]: The radius cannot be less than or equal to zero! Aborting!" << std::endl;
@@ -491,7 +675,7 @@ namespace map_handler
 						CurrentTreeType &tree = (threaded_) ? tbb_thread_pool.local() : grid_->tree();
 
 						for(idx_i = iteration_range.begin(); idx_i != iteration_range.end(); ++idx_i)
-							sphereCore(tree,idx_i,ijk_min,ijk_max,radius,centre,intensity);
+							sphereCore(tree,idx_i,ijk_min,ijk_max,radius,centre,intensity,set_transient);
 					};
 
 					if(threaded_)
@@ -516,7 +700,7 @@ namespace map_handler
 			}
 
 			template <class U>
-			void insertPyramid(const float& amplitude_h, const float& amplitude_v, const float& length, const openvdb::Vec3d& direction, const U& intensity, const openvdb::Vec3d& origin = openvdb::Vec3d(0.0, 0.0, 0.0))
+			void insertPyramid(const float& amplitude_h, const float& amplitude_v, const float& length, const openvdb::Vec3d& direction, const U& intensity, const openvdb::Vec3d& origin = openvdb::Vec3d(0.0, 0.0, 0.0), const bool& set_transient = false)
 			{
 				if (length <= 0.0)
 					std::cerr << "[AddPyramid]: The cone length cannot be less than or equal to zero! Aborting!" << std::endl;
@@ -547,7 +731,7 @@ namespace map_handler
 						CurrentTreeType &tree = (threaded_) ? tbb_thread_pool.local() : grid_->tree();
 
 						for (idx_i = iteration_range.begin(); idx_i != iteration_range.end(); ++idx_i)
-							pyramidCore(tree, idx_i,  idx_j, idx_k, theta_h, theta_v, idx_space_origin, rotation_quat, intensity);
+							pyramidCore(tree, idx_i,  idx_j, idx_k, theta_h, theta_v, idx_space_origin, rotation_quat, intensity, set_transient);
 					};
 
 
@@ -573,7 +757,7 @@ namespace map_handler
 			}
 
 			template <class U>
-			void insertBox(const float& amplitude_h, const float& amplitude_v, const float& length, const U& intensity, const openvdb::Vec3d& centre = openvdb::Vec3d(0.0, 0.0, 0.0))
+			void insertBox(const float& amplitude_h, const float& amplitude_v, const float& length, const U& intensity, const openvdb::Vec3d& centre = openvdb::Vec3d(0.0, 0.0, 0.0), const bool& set_transient = false)
 			{
 				if(amplitude_h < 0 || amplitude_v < 0 || length < 0)
 					std::cerr << "[AddBox]: The Box length/amplitude cannot be less than zero! Aborting! Aborting!" << std::endl;
@@ -602,7 +786,7 @@ namespace map_handler
 						CurrentTreeType &tree = (threaded_) ? tbb_thread_pool.local() : grid_->tree();
 
 						for (idx_i = iteration_range.begin(); idx_i != iteration_range.end(); ++idx_i)
-							boxCore(tree, idx_i, ijk_min, ijk_max, intensity);
+							boxCore(tree, idx_i, ijk_min, ijk_max, intensity, set_transient);
 					};
 
 					if(threaded_)
@@ -639,12 +823,12 @@ namespace map_handler
 			}
 
 			template <class U>
-			void updateFromAlignedDepth(const cv::Mat& aligned_depth_image, const cv::Mat& int_cam_matrix, const U &intensity)
+			void updateFromAlignedDepth(const cv::Mat& aligned_depth_image, const cv::Mat& intrinsic_cam_matrix, const U &intensity, const bool& set_transient = false, const std::string& depth_image_encoding = sensor_msgs::image_encodings::TYPE_16UC1)
 			{
 				grid_.reset();
 				grid_ = GridT::create();
 				grid_->setTransform(initial_transformation_);
-				createFromAlignedDepth(aligned_depth_image, int_cam_matrix, intensity);
+				createFromAlignedDepth(aligned_depth_image, intrinsic_cam_matrix, intensity, set_transient, depth_image_encoding);
 			}
 			/* -------------------------------------------------------------------------- */
 			
