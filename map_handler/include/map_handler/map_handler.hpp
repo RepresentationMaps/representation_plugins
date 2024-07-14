@@ -544,7 +544,7 @@ namespace map_handler
 					grid_ = GridT::create();
 
 					if(vertex_centered)
-					offset_ = openvdb::math::Vec3d(0.0,0.0,0.0);
+						offset_ = openvdb::math::Vec3d(0.0,0.0,0.0);
 					else
 						offset_ = openvdb::math::Vec3d(voxel_size_/2.0,voxel_size_/2.0,voxel_size_/2.0);
 
@@ -825,9 +825,7 @@ namespace map_handler
 			template <class U>
 			void updateFromAlignedDepth(const cv::Mat& aligned_depth_image, const cv::Mat& intrinsic_cam_matrix, const U &intensity, const bool& set_transient = false, const std::string& depth_image_encoding = sensor_msgs::image_encodings::TYPE_16UC1)
 			{
-				grid_.reset();
-				grid_ = GridT::create();
-				grid_->setTransform(initial_transformation_);
+				clear();
 				createFromAlignedDepth(aligned_depth_image, intrinsic_cam_matrix, intensity, set_transient, depth_image_encoding);
 			}
 			/* -------------------------------------------------------------------------- */
@@ -839,13 +837,19 @@ namespace map_handler
 			}
 			/* -------------------------------------------------------------------------- */
 
-			
+			/* ----------------------- Additional Functionalities ----------------------- */
+			void clear()
+			{
+				grid_.reset();
+				grid_ = GridT::create();
+				grid_->setTransform(initial_transformation_);
+			}
 			void setFixedFrame(const std::string fixed_frame);
 			void setMapFrame(const std::string map_frame);
-
 			void rotateMap(); // perform the grid rotation from map frame to fixed frame
-
 			void flushFoV(); // removes everything inside the FoV; to be performed as a TopologyDifference
+			/* -------------------------------------------------------------------------- */
+
 		/* -------------------------------------------------------------------------- */
 	};
 	/* -------------------------------------------------------------------------- */
