@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <chrono>
 #include <ctime> 
+#include <limits>
 
 #include <openvdb/openvdb.h>
 #include <openvdb/tree/ValueAccessor.h>
@@ -166,11 +167,13 @@ namespace map_handler
 						for(int col = iteration_range.cols().begin(); col != iteration_range.cols().end(); ++col)
 						{
 							/* --------------------------- Compute Coordinates -------------------------- */
-							if (std::strcmp(depth_image_encoding.c_str(),sensor_msgs::image_encodings::TYPE_32FC1) == 0)
+							if (depth_image_encoding.find("32") != std::string::npos)
 								z_metric = aligned_depth_image.at<uint32_t>(row, col) * 0.001;
-							else
+							else if (depth_image_encoding.find("16") != std::string::npos)
 								z_metric = aligned_depth_image.at<uint16_t>(row, col) * 0.001;
-
+							else
+								z_metric = std::numeric_limits<double>::signaling_NaN();
+							
 							double x_metric = z_metric * ((col - cx) * fx_inv);
 							double y_metric = z_metric * ((row - cy) * fy_inv);
 							/* -------------------------------------------------------------------------- */
@@ -217,8 +220,7 @@ namespace map_handler
 								}
 								/* -------------------------------------------------------------------------- */
 							}
-							/* -------------------------------------------------------------------------- */
-							  
+							/* -------------------------------------------------------------------------- */		  
 						}
 
 				};
