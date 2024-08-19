@@ -162,20 +162,21 @@ namespace map_handler
 							if constexpr(std::is_invocable_v<U,int,int>)
 							{
 								/* ------------------------------- First Check ------------------------------ */
-								uint16_t z = aligned_depth_image.at<uint16_t>(row, col);
-
+								// uint16_t z = aligned_depth_image.at<uint16_t>(row, col);
+								float z = aligned_depth_image.at<float>(row, col); // ?
 
 								if(z != 0)
 								{
 									/* --------------------------- Compute Coordinates -------------------------- */
-									double fx_inv = 1.0/int_cam_matrix.at<float>(0,0);
-									double cx = int_cam_matrix.at<float>(0,2);
-									double fy_inv = 1.0/int_cam_matrix.at<float>(1,1);
-									double cy = int_cam_matrix.at<float>(1,2);
+									auto fx_inv = 1.0/int_cam_matrix.at<float>(0,0);
+									auto cx = int_cam_matrix.at<float>(0,2);
+									auto fy_inv = 1.0/int_cam_matrix.at<float>(1,1);
+									auto cy = int_cam_matrix.at<float>(1,2);
 
-									double z_metric = z*0.001;									
-									double x_metric = z_metric*((col - cx) * fx_inv);
-									double y_metric = z_metric*((row - cy) * fy_inv);
+									// double z_metric = z*0.001; // ?
+									auto z_metric = z;					
+									auto x_metric = z_metric*((col - cx) * fx_inv);
+									auto y_metric = z_metric*((row - cy) * fy_inv);
 									/* -------------------------------------------------------------------------- */
 									
 									/* ------------------------------ Second Check ------------------------------ */
@@ -409,7 +410,12 @@ namespace map_handler
 			
 			/* --------------------------------- Insert --------------------------------- */
 			template <class U>
-			void insertCone(const float& amplitude, const float& length, const openvdb::Vec3d& direction, const U &intensity, const openvdb::Vec3d& origin = openvdb::Vec3d(0.0, 0.0, 0.0))
+			void insertCone(
+				const float& amplitude,
+				const float& length,
+				const openvdb::Vec3d& direction,
+				const U &intensity,
+				const openvdb::Vec3d& origin = openvdb::Vec3d(0.0, 0.0, 0.0))
 			{
 				if (length <= 0.0)
 					std::cerr << "[AddCone]: The cone length cannot be less than or equal to zero! Aborting!" << std::endl;
@@ -662,6 +668,10 @@ namespace map_handler
 			void rotateMap(); // perform the grid rotation from map frame to fixed frame
 
 			void flushFoV(); // removes everything inside the FoV; to be performed as a TopologyDifference
+
+			void clear(){
+				grid_->clear();
+			}
 		/* -------------------------------------------------------------------------- */
 	};
 	/* -------------------------------------------------------------------------- */
