@@ -8,6 +8,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(representation_plugin_base)
 
+add_compile_options(-fPIC)
+
 # Global flags
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
@@ -21,8 +23,9 @@ find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
 # Targets
-ament_auto_add_library(${PROJECT_NAME}_lib
+ament_auto_add_library(${PROJECT_NAME}_lib SHARED
   src/representation_plugin_base/plugin_base.cpp
+  src/representation_plugin_base/regions_register.cpp
 )
 
 install(
@@ -32,6 +35,13 @@ install(
 
 ament_export_include_directories(
   include
+)
+ament_export_libraries(
+  ${PROJECT_NAME}_lib
+)
+ament_export_dependencies(
+  rclcpp
+  pluginlib
 )
 
 # Testing

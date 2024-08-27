@@ -15,12 +15,17 @@
   <depend>rclcpp</depend>
   <depend>pluginlib</depend>
   <depend>representation_plugin_base</depend>
+  <depend>map_handler</depend>
+  <depend>pcl_conversions</depend>
+  <depend>pcl_ros</depend>
+  <depend>vdb2pc</depend>
 
   <test_depend>ament_cmake_gmock</test_depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
   <export>
+    <representation_plugin_base plugin="${prefix}/plugins.xml"/>
     <build_type>ament_cmake</build_type>
   </export>
 </package>

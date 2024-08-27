@@ -22,7 +22,7 @@ list(APPEND CMAKE_MODULE_PATH "${FIND_OPENVDB_PATH}")
 find_package(sensor_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(PCL REQUIRED)
-find_package(OpenVDB REQUIRED)
+# find_package(OpenVDB REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
@@ -30,7 +30,6 @@ ament_auto_find_build_dependencies()
 # Targets
 ament_auto_add_library(${PROJECT_NAME}_lib
   src/map_handler/frustum_fov.cpp
-  src/map_handler/map_handler.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}_lib
@@ -39,17 +38,32 @@ target_link_libraries(${PROJECT_NAME}_lib
   ${OpenVDB_LIBRARIES}
 )
 
-ament_auto_add_executable(frustum_debug
-  src/frustum_debug.cpp
+# ament_auto_add_executable(frustum_debug
+#   src/frustum_debug.cpp
+# )
+
+ament_export_include_directories(
+  include
 )
+
+ament_export_libraries(
+  ${PROJECT_NAME}_lib
+)
+# ament_export_targets(
+#   export_${PROJECT_NAME}
+# )
+
+# install(
+#   TARGETS map_handler_lib
+#   EXPORT export_${PROJECT_NAME}
+#   ARCHIVE DESTINATION lib
+#   LIBRARY DESTINATION lib
+#   RUNTIME DESTINATION bin
+# )
 
 install(
   DIRECTORY include/
   DESTINATION include
-)
-
-ament_export_include_directories(
-  include
 )
 
 # Testing

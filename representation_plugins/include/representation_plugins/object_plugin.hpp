@@ -2,22 +2,17 @@
 #define REPRESENTATION_PLUGINS__PLUGIN_TEST_HPP
 
 #include <memory>
-#include <chrono>
-#include <functional>
 
 #include <rclcpp/rclcpp.hpp>
 
 #include <representation_plugin_base/plugin_base.hpp>
 
 namespace representation_plugins{
-	class PluginTest: public PluginBase {
+	class ObjectsPlugin: public PluginBase {
 		private:
-			rclcpp::TimerBase::SharedPtr timer_;
+			int id_;
 		public:
-			PluginTest();
-			~PluginTest();
-			void run() const;
-			void initialize() override;
+			ObjectsPlugin(){};
 	};
 } // namespace representation_plugins
 #endif

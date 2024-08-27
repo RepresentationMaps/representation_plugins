@@ -1,5 +1,8 @@
 <library path="representation_plugins">
-  <class type="representation_plugins::PluginTest" base_class_type="representation_plugins::PluginBase">
+  <class name="PluginTest" type="representation_plugins::PluginTest" base_class_type="representation_plugins::PluginBase">
     <description>This is a test plugin.</description>
+  </class>
+  <class name="PluginBoxTest" type="representation_plugins::PluginBoxTest" base_class_type="representation_plugins::PluginBase">
+    <description>This is a test box plugin.</description>
   </class>
 </library>
