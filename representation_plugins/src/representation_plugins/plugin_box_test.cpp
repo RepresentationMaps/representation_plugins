@@ -18,7 +18,7 @@ namespace representation_plugins{
 			std::chrono::milliseconds(50),
 			std::bind(&PluginBoxTest::run, this));
 		semantic_map_ = std::make_shared<map_handler::MapHandler<openvdb::Int32Grid>>(
-			false,
+			threaded_,
 			0.1,
 			true);
 		map_publisher_ = std::make_shared<vdb2pc::ros_utils::VDB2PCPublisher<openvdb::Int32Grid>>(
@@ -40,26 +40,30 @@ namespace representation_plugins{
 			regs_id = result.get()->regs_of_space_id;
 			auto reg_of_space_id_1 = regs_id[0];
 			auto reg_of_space_id_2 = regs_id[1];
+			auto start = std::chrono::high_resolution_clock::now();
 	      	semantic_map_->insertSemanticBox(
 	      		1.0,
 	      		1.0,
 	      		1.0,
 	      		reg_of_space_id_1,
-	      		regions_register_,
+	      		*regions_register_,
 	      		openvdb::Vec3d(3*std::sin(omega_*(plugin_node_ptr_->get_clock()->now().seconds())), 0.0, 0.0));
+	      	auto end = std::chrono::high_resolution_clock::now();
+	      	std::chrono::duration<double> elapsed = end - start;
+	      	std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
 	      	semantic_map_->insertSemanticBox(
 	      		1.0,
 	      		1.0,
 	      		1.0,
 	      		reg_of_space_id_2,
-	      		regions_register_,
+	      		*regions_register_,
 	      		openvdb::Vec3d(-3*std::sin(omega_*(plugin_node_ptr_->get_clock()->now().seconds())), 0.0, 0.0));
 	      	map_publisher_->publish(*(semantic_map_->getGridPtr()));
 		} else {
 			RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to call service");
 		}
 
-		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Number of regions: %d", regions_register_.getRegionsNumber());
+		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Number of regions: %d", regions_register_->getRegionsNumber());
 
 		auto remove_request = std::make_shared<reg_of_space_server::srv::RemoveRegOfSpace::Request>();
 		remove_request->regs_of_space_id = regs_id;
@@ -75,9 +79,9 @@ namespace representation_plugins{
 			RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to call service");
 		}
 
-		regions_register_.print();
+		regions_register_->print();
 		semantic_map_->clear();
-		regions_register_.clear();
+		regions_register_->clear();
 	}
 }  // representation_plugins
 
