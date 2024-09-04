@@ -11,6 +11,7 @@
 
 #include <openvdb/openvdb.h>
 #include <openvdb/tree/ValueAccessor.h>
+#include <openvdb/tools/ValueTransformer.h>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/blocked_range2d.h>
@@ -879,6 +880,44 @@ namespace map_handler
 					else
 						kernel(tbb_iteration_range);
 				}
+			}
+
+			bool removeRegion(const std::string & reg,
+							  representation_plugins::RegionsRegister & reg_register){
+				using ValueIter = typename GridT::ValueOnIter;
+
+				// First we find the ID associated with the region-only area
+				std::vector<std::string> reg_area = {reg};
+				auto reg_id = reg_register.findRegions(reg_area);
+				auto ids_to_udpate = reg_register.removeRegion(reg);
+				if ((reg_id == -1) && (ids_to_udpate.size() == 0)){
+					return false;
+				}
+
+			    struct IdUpdater {
+			        int reg_id_;
+			        std::map<int, int> ids_to_update_;
+			        IdUpdater(
+			        	const int & reg_id, 
+			        	const std::map<int, int> & ids_to_udpate):
+			        reg_id_(reg_id), ids_to_update_(ids_to_udpate) {}
+			        inline void operator()(const ValueIter& iter) const {
+			        	if (*iter == reg_id_){
+			        		iter.setValueOff();
+			        		return;
+			        	}
+			        	auto ids_it = ids_to_update_.find(*iter);
+			        	if (ids_it == ids_to_update_.end()){
+			        		return;
+			        	}
+			        	iter.setValue(ids_it->second);
+			        }
+			    };
+				
+			    openvdb::tools::foreach(grid_.beginValueOn(),
+				        IdUpdater(reg_id, ids_to_udpate));
+
+			    return true;
 			}
 
 			template <class U>
