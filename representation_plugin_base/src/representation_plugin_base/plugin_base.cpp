@@ -11,11 +11,14 @@ namespace representation_plugins{
 
 	void PluginBase::setup(
 		const std::shared_ptr<rclcpp::Node> & node_ptr,
-		const std::string & name)
+		const std::string & name,
+		const bool & threaded)
 	{
 		node_ptr_ = node_ptr;
 		plugin_node_ptr_ = std::make_shared<rclcpp::Node>(name);
 		name_ = name;
+		threaded_ = threaded;
+		regions_register_ = std::make_shared<RegionsRegister>(threaded_);
 		register_client_ = plugin_node_ptr_->create_client<reg_of_space_server::srv::RegOfSpace>("register_region_of_space");
 		remove_client_ = plugin_node_ptr_->create_client<reg_of_space_server::srv::RemoveRegOfSpace>("remove_region_of_space");
 	}

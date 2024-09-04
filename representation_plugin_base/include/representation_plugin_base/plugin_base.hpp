@@ -18,8 +18,9 @@ namespace representation_plugins{
 			std::shared_ptr<rclcpp::Node> node_ptr_;
 			std::shared_ptr<rclcpp::Node> plugin_node_ptr_;
 			std::string name_;
+			bool threaded_;
 
-			RegionsRegister regions_register_;
+			std::shared_ptr<RegionsRegister> regions_register_;
 
 			rclcpp::Client<reg_of_space_server::srv::RegOfSpace>::SharedPtr register_client_;
 			rclcpp::Client<reg_of_space_server::srv::RemoveRegOfSpace>::SharedPtr remove_client_;
@@ -28,7 +29,8 @@ namespace representation_plugins{
 			virtual ~PluginBase();
 			void setup(
 				const std::shared_ptr<rclcpp::Node> & node_ptr,
-				const std::string & name);
+				const std::string & name,
+				const bool & threaded);
 			virtual void initialize() = 0;
 	};
 }  // representation_plugins
