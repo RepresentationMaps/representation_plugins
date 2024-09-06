@@ -475,6 +475,59 @@ namespace map_handler
 				
 			}
 
+			template<class GridAccessorType>
+			int getAreaId(
+				const GridAccessorType & accessor,
+				const openvdb::Coord & ijk,
+				const std::string & reg,
+				representation_plugins::RegionsRegister & reg_register){
+				int id;
+				// openvdb::Coord ijk(idx_i,idx_j,idx_k);
+				if (!accessor.isValueOn(ijk)){
+					std::vector<std::string> reg_vec({reg});
+					id = reg_register.findRegions(reg_vec);
+					if (id == -1){
+						id = reg_register.addArea(reg_vec);
+					}
+				} else{
+					id = accessor.getValue(ijk);
+					auto regs = reg_register.findRegionsById(id);
+					if (std::find(regs.begin(), regs.end(), reg) == regs.end()){
+						regs.push_back(reg);
+						id = reg_register.findRegions(regs);
+						if (id == -1){
+							id = reg_register.addArea(regs);
+						}
+					} else {
+						// No need for intervention, as this specific region
+						// is already mapped to this voxel
+						return -2;
+					}
+				}
+				return id;
+			}
+
+			template<class GridAccessorType>
+			void setVoxelId(
+				GridAccessorType & accessor,
+				const int & idx_i,
+				const int & idx_j,
+				const int & idx_k,
+				const std::string & reg,
+				representation_plugins::RegionsRegister & reg_register)
+			{
+				openvdb::Coord ijk(idx_i,idx_j,idx_k);
+				int id = getAreaId(
+					accessor,
+					ijk,
+					reg,
+					reg_register);
+				if (id == -2){
+					return;
+				}
+				accessor.setValue(ijk, id);
+			}
+
 			template<class TreeT>
 			void boxSemanticCore(
 				TreeT& tree, 
@@ -491,30 +544,48 @@ namespace map_handler
 				{
 					for(int idx_k = ijk_min[2]; idx_k <= ijk_max[2]; ++idx_k)
 					{
-						int id;
+						setVoxelId(
+							accessor,
+							idx_i,
+							idx_j,
+							idx_k,
+							reg,
+							reg_register);
+					}
+				}
+			}
+
+			template<class TreeT>
+			void sphereSemanticCore(
+				TreeT& tree,
+				const int& idx_i,
+				const openvdb::Coord& ijk_min,
+				const openvdb::Coord& ijk_max,
+				const float& radius,
+				const openvdb::Vec3d& centre,
+				const std::string & reg,
+				representation_plugins::RegionsRegister & reg_register)
+			{
+				using GridAccessorType = typename openvdb::Grid<TreeT>::Accessor;
+				GridAccessorType accessor(tree);
+
+				for(int idx_j = ijk_min[1]; idx_j <= ijk_max[1]; ++idx_j)
+				{
+					for(int idx_k = ijk_min[2]; idx_k <= ijk_max[2]; ++idx_k)
+					{
 						openvdb::Coord ijk(idx_i,idx_j,idx_k);
-						if (!accessor.isValueOn(ijk)){
-							std::vector<std::string> reg_vec({reg});
-							id = reg_register.findRegions(reg_vec);
-							if (id == -1){
-								id = reg_register.addArea(reg_vec);
-							}
-						} else{
-							id = accessor.getValue(ijk);
-							auto regs = reg_register.findRegionsById(id);
-							if (std::find(regs.begin(), regs.end(), reg) == regs.end()){
-								regs.push_back(reg);
-								id = reg_register.findRegions(regs);
-								if (id == -1){
-									id = reg_register.addArea(regs);
-								}
-							} else {
-								// No need for intervention, as this specific region
-								// is already mapped to this voxel
-								return;
-							}
+						openvdb::Vec3d current_point = initial_transformation_->indexToWorld(ijk);
+						float distance = computeDistance(centre,current_point);
+						if(distance <= radius)
+						{	
+							setVoxelId(
+								accessor,
+								idx_i,
+								idx_j,
+								idx_k,
+								reg,
+								reg_register);
 						}
-						accessor.setValue(ijk, id);
 					}
 				}
 			}
@@ -677,6 +748,67 @@ namespace map_handler
 
 						for(idx_i = iteration_range.begin(); idx_i != iteration_range.end(); ++idx_i)
 							sphereCore(tree,idx_i,ijk_min,ijk_max,radius,centre,intensity,set_transient);
+					};
+
+					if(threaded_)
+					{
+						tbb::parallel_for(tbb_iteration_range,kernel);
+						using RangeT = tbb::blocked_range<typename tbb::enumerable_thread_specific<CurrentTreeType>::iterator>;
+						struct Op {
+				            const bool mDelete;
+				            CurrentTreeType *mTree;
+				            Op(CurrentTreeType &tree) : mDelete(false), mTree(&tree) {}
+				            Op(const Op& other, tbb::split) : mDelete(true), mTree(new CurrentTreeType(other.mTree->background())){}
+				            ~Op() { if (mDelete) delete mTree; }
+				            void operator()(const RangeT &r) { for (auto i=r.begin(); i!=r.end(); ++i) this->merge(*i);}
+				            void join(Op &other) { this->merge(*(other.mTree)); }
+				            void merge(CurrentTreeType &tree) { mTree->merge(tree, openvdb::MERGE_ACTIVE_STATES);}
+				        } op(grid_->tree());
+						tbb::parallel_reduce(RangeT(tbb_thread_pool.begin(), tbb_thread_pool.end()), op);
+					}
+					else
+						kernel(tbb_iteration_range);
+				}
+			}
+			
+			void insertSemanticSphere(
+				const float& radius,
+				const std::string & reg,
+				representation_plugins::RegionsRegister & reg_register,
+				const openvdb::Vec3d& centre = openvdb::Vec3d(0.0,0.0,0.0))
+			{
+				if (radius <= 0.0)
+					std::cerr << "[AddSphere]: The radius cannot be less than or equal to zero! Aborting!" << std::endl;
+				else
+				{
+					using CurrentTreeType = typename GridT::TreeType;
+
+					openvdb::Vec3d xyz_min_value_ws = centre - radius;
+					openvdb::Vec3d xyz_min_value_is = grid_->worldToIndex(xyz_min_value_ws);
+					openvdb::Coord ijk_min(static_cast<int>(xyz_min_value_is[0]),static_cast<int>(xyz_min_value_is[1]),static_cast<int>(xyz_min_value_is[2]));
+
+					openvdb::Vec3d xyz_max_value = centre + radius;
+					openvdb::Vec3d xyz_max_value_is = grid_->worldToIndex(xyz_max_value);
+					openvdb::Coord ijk_max(static_cast<int>(xyz_max_value_is[0]),static_cast<int>(xyz_max_value_is[1]),static_cast<int>(xyz_max_value_is[2]));
+					
+					tbb::enumerable_thread_specific<CurrentTreeType> tbb_thread_pool(grid_->tree());
+					tbb::blocked_range<int> tbb_iteration_range(ijk_min[0],ijk_max[0],sizeof(ijk_min[0]));
+
+					auto kernel = [&](const tbb::blocked_range<int>& iteration_range)
+					{
+						int idx_i = 0;
+						CurrentTreeType &tree = (threaded_) ? tbb_thread_pool.local() : grid_->tree();
+
+						for(idx_i = iteration_range.begin(); idx_i != iteration_range.end(); ++idx_i)
+							sphereSemanticCore(
+								tree,
+								idx_i,
+								ijk_min,
+								ijk_max,
+								radius,
+								centre,
+								reg,
+								reg_register);
 					};
 
 					if(threaded_)
@@ -902,6 +1034,8 @@ namespace map_handler
 			        	const std::map<int, int> & ids_to_udpate):
 			        reg_id_(reg_id), ids_to_update_(ids_to_udpate) {}
 			        inline void operator()(const ValueIter& iter) const {
+			        	if (!iter.isVoxelValue())
+			        		return;
 			        	if (*iter == reg_id_){
 			        		iter.setValueOff();
 			        		return;
@@ -913,9 +1047,12 @@ namespace map_handler
 			        	iter.setValue(ids_it->second);
 			        }
 			    };
-				
-			    openvdb::tools::foreach(grid_.beginValueOn(),
-				        IdUpdater(reg_id, ids_to_udpate));
+				// As we are directly modifying the topology
+				// of the tree associated with the grid,
+				// it is not possible to have a multithreaded
+				// foreach
+			    openvdb::tools::foreach(grid_->beginValueOn(),
+				        IdUpdater(reg_id, ids_to_udpate), false);
 
 			    return true;
 			}
