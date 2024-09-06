@@ -12,6 +12,7 @@
 #include <openvdb/openvdb.h>
 #include <openvdb/tree/ValueAccessor.h>
 #include <openvdb/tools/ValueTransformer.h>
+#include <openvdb/tools/Statistics.h>
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/blocked_range2d.h>
@@ -482,7 +483,6 @@ namespace map_handler
 				const std::string & reg,
 				representation_plugins::RegionsRegister & reg_register){
 				int id;
-				// openvdb::Coord ijk(idx_i,idx_j,idx_k);
 				if (!accessor.isValueOn(ijk)){
 					std::vector<std::string> reg_vec({reg});
 					id = reg_register.findRegions(reg_vec);
@@ -568,7 +568,7 @@ namespace map_handler
 			{
 				using GridAccessorType = typename openvdb::Grid<TreeT>::Accessor;
 				GridAccessorType accessor(tree);
-
+				
 				for(int idx_j = ijk_min[1]; idx_j <= ijk_max[1]; ++idx_j)
 				{
 					for(int idx_k = ijk_min[2]; idx_k <= ijk_max[2]; ++idx_k)
@@ -1092,6 +1092,16 @@ namespace map_handler
 			void setMapFrame(const std::string map_frame);
 			void rotateMap(); // perform the grid rotation from map frame to fixed frame
 			void flushFoV(); // removes everything inside the FoV; to be performed as a TopologyDifference
+
+			void printHistogram(const int & max_id){
+				auto histogram = openvdb::tools::histogram(
+					grid_->beginValueOn(),
+					0.0,
+					static_cast<double>(max_id+1),
+					10,
+					false);
+				histogram.print();
+			}
 			/* -------------------------------------------------------------------------- */
 
 		/* -------------------------------------------------------------------------- */
