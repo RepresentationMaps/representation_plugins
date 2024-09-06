@@ -4,25 +4,18 @@
 #include "representation_plugin_base/regions_register.hpp"
 
 namespace representation_plugins{
-	RegionsRegister::RegionsRegister(const bool & threaded){
-		threaded_ = threaded;
-	}
+	RegionsRegister::RegionsRegister(const bool & threaded):
+		threaded_(threaded),
+		id_(-1){}
 
 	RegionsRegister::~RegionsRegister(){}
 
 	int RegionsRegister::addArea(const std::vector<std::string> & regs){
 		// adds a new area assigned to the set of regions regs
-		int id;
 		std::lock_guard<std::recursive_mutex> guard(register_mutex_);
-		if (areas_.empty()){
-			id = 0;
-		} else {
-			auto last = areas_.rbegin();
-			int last_id = last->second;
-			id = last_id+1;
-		}
-		areas_[regs] = id;
-		return id;
+		id_++;
+		areas_[regs] = id_;
+		return id_;
 	}
 
 	std::map<int, int> RegionsRegister::removeRegion(const std::string & reg){
@@ -30,6 +23,7 @@ namespace representation_plugins{
 		std::vector<std::vector<std::string>> areas_to_remove;
 		std::map<std::vector<std::string>, int> areas_to_add;
 		std::map<int, int> ids_to_update;
+		std::lock_guard<std::recursive_mutex> guard(register_mutex_);
 		for (const auto & area: areas_){
 			auto regs =  area.first;
 			auto reg_elem = std::find(regs.begin(), regs.end(), reg); 
@@ -89,6 +83,7 @@ namespace representation_plugins{
 
 	void RegionsRegister::clear(){
 		areas_.clear();
+		id_ = -1;
 	}
 
 	int RegionsRegister::getRegionsNumber() const {
@@ -103,5 +98,9 @@ namespace representation_plugins{
 			}
 			std::cout << std::endl;
 		}
+	}
+
+	int RegionsRegister::getId() const {
+		return id_;
 	}
 } // representation_plugins

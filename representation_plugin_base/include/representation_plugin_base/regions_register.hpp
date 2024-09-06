@@ -13,6 +13,7 @@ namespace representation_plugins{
 			bool threaded_;
 			std::recursive_mutex register_mutex_;
 			std::map<std::vector<std::string>, int> areas_;
+			int id_;
 		public:
 			RegionsRegister(const bool & threaded);
 			~RegionsRegister();
@@ -26,6 +27,7 @@ namespace representation_plugins{
 			// Debugging functions
 			int getRegionsNumber() const;
 			void print() const;
+			int getId() const;
 	};
 }  // representation_plugins
 #endif
