@@ -258,6 +258,30 @@ namespace map_handler
 				}
 			}
 
+			void performIteration(
+						tbb::enumerable_thread_specific<openvdb::Int32Tree> & tbb_thread_pool,
+						const tbb::blocked_range<int> & tbb_iteration_range,
+						std::function<void(const tbb::blocked_range<int>&)> kernel)
+			{
+				if(threaded_){
+					tbb::parallel_for(tbb_iteration_range, kernel);
+					using RangeT = tbb::blocked_range<typename tbb::enumerable_thread_specific<openvdb::Int32Tree>::iterator>;
+					struct Op {
+			            const bool mDelete;
+			            openvdb::Int32Tree *mTree;
+			            Op(openvdb::Int32Tree &tree) : mDelete(false), mTree(&tree) {}
+			            Op(const Op& other, tbb::split) : mDelete(true), mTree(new openvdb::Int32Tree(other.mTree->background())){}
+			            ~Op() { if (mDelete) delete mTree; }
+			            void operator()(const RangeT &r) { for (auto i=r.begin(); i!=r.end(); ++i) this->merge(*i);}
+			            void join(Op &other) { this->merge(*(other.mTree)); }
+			            void merge(openvdb::Int32Tree &tree) { mTree->merge(tree, openvdb::MERGE_ACTIVE_STATES);}
+			        } op(grid_->tree());
+			        tbb::parallel_reduce(RangeT(tbb_thread_pool.begin(), tbb_thread_pool.end()), op);
+				}
+				else
+					kernel(tbb_iteration_range);
+			}
+
 		public:
 
 			SemanticMapHandler(
@@ -348,24 +372,7 @@ namespace map_handler
 								reg_register);
 					};
 
-					if(threaded_)
-					{
-						tbb::parallel_for(tbb_iteration_range,kernel);
-						using RangeT = tbb::blocked_range<typename tbb::enumerable_thread_specific<openvdb::Int32Tree>::iterator>;
-						struct Op {
-				            const bool mDelete;
-				            openvdb::Int32Tree *mTree;
-				            Op(openvdb::Int32Tree &tree) : mDelete(false), mTree(&tree) {}
-				            Op(const Op& other, tbb::split) : mDelete(true), mTree(new openvdb::Int32Tree(other.mTree->background())){}
-				            ~Op() { if (mDelete) delete mTree; }
-				            void operator()(const RangeT &r) { for (auto i=r.begin(); i!=r.end(); ++i) this->merge(*i);}
-				            void join(Op &other) { this->merge(*(other.mTree)); }
-				            void merge(openvdb::Int32Tree &tree) { mTree->merge(tree, openvdb::MERGE_ACTIVE_STATES);}
-				        } op(grid_->tree());
-						tbb::parallel_reduce(RangeT(tbb_thread_pool.begin(), tbb_thread_pool.end()), op);
-					}
-					else
-						kernel(tbb_iteration_range);
+					performIteration(tbb_thread_pool, tbb_iteration_range, kernel);
 				}
 			}
 
@@ -417,50 +424,8 @@ namespace map_handler
 								reg_register);
 					};
 
-					if(threaded_)
-					{
-						tbb::parallel_for(tbb_iteration_range,kernel);
-						using RangeT = tbb::blocked_range<typename tbb::enumerable_thread_specific<openvdb::Int32Tree>::iterator>;
-						struct Op {
-				            const bool mDelete;
-				            openvdb::Int32Tree *mTree;
-				            Op(openvdb::Int32Tree &tree) : mDelete(false), mTree(&tree) {}
-				            Op(const Op& other, tbb::split) : mDelete(true), mTree(new openvdb::Int32Tree(other.mTree->background())){}
-				            ~Op() { if (mDelete) delete mTree; }
-				            void operator()(const RangeT &r) { for (auto i=r.begin(); i!=r.end(); ++i) this->merge(*i);}
-				            void join(Op &other) { this->merge(*(other.mTree)); }
-				            void merge(openvdb::Int32Tree &tree) { mTree->merge(tree, openvdb::MERGE_ACTIVE_STATES);}
-				        } op(grid_->tree());
-				        tbb::parallel_reduce(RangeT(tbb_thread_pool.begin(), tbb_thread_pool.end()), op);
-					}
-					else
-						kernel(tbb_iteration_range);
+					performIteration(tbb_thread_pool, tbb_iteration_range, kernel);
 				}
-			}
-
-			void performIteration(
-						tbb::enumerable_thread_specific<openvdb::Int32Tree> & tbb_thread_pool,
-						const tbb::blocked_range<int> & tbb_iteration_range,
-						std::function<void(const tbb::blocked_range<int>&)> kernel,
-						const bool & threaded)
-			{
-				if(threaded_){
-					tbb::parallel_for(tbb_iteration_range, kernel);
-					using RangeT = tbb::blocked_range<typename tbb::enumerable_thread_specific<openvdb::Int32Tree>::iterator>;
-					struct Op {
-			            const bool mDelete;
-			            openvdb::Int32Tree *mTree;
-			            Op(openvdb::Int32Tree &tree) : mDelete(false), mTree(&tree) {}
-			            Op(const Op& other, tbb::split) : mDelete(true), mTree(new openvdb::Int32Tree(other.mTree->background())){}
-			            ~Op() { if (mDelete) delete mTree; }
-			            void operator()(const RangeT &r) { for (auto i=r.begin(); i!=r.end(); ++i) this->merge(*i);}
-			            void join(Op &other) { this->merge(*(other.mTree)); }
-			            void merge(openvdb::Int32Tree &tree) { mTree->merge(tree, openvdb::MERGE_ACTIVE_STATES);}
-			        } op(grid_->tree());
-			        tbb::parallel_reduce(RangeT(tbb_thread_pool.begin(), tbb_thread_pool.end()), op);
-				}
-				else
-					kernel(tbb_iteration_range);
 			}
 
 			void insertSemanticCone(
@@ -510,7 +475,7 @@ namespace map_handler
 								reg_register);
 					};
 
-					performIteration(tbb_thread_pool, tbb_iteration_range, kernel, threaded_);
+					performIteration(tbb_thread_pool, tbb_iteration_range, kernel);
 				}
 			}
 
@@ -564,24 +529,7 @@ namespace map_handler
 						}
 					};
 
-					if(threaded_)
-					{
-						tbb::parallel_for(tbb_iteration_range,kernel);
-						using RangeT = tbb::blocked_range<typename tbb::enumerable_thread_specific<openvdb::Int32Tree>::iterator>;
-						struct Op {
-				            const bool mDelete;
-				            openvdb::Int32Tree *mTree;
-				            Op(openvdb::Int32Tree &tree) : mDelete(false), mTree(&tree) {}
-				            Op(const Op& other, tbb::split) : mDelete(true), mTree(new openvdb::Int32Tree(other.mTree->background())){}
-				            ~Op() { if (mDelete) delete mTree; }
-				            void operator()(const RangeT &r) { for (auto i=r.begin(); i!=r.end(); ++i) this->merge(*i);}
-				            void join(Op &other) { this->merge(*(other.mTree)); }
-				            void merge(openvdb::Int32Tree &tree) { mTree->merge(tree, openvdb::MERGE_ACTIVE_STATES);}
-				        } op(grid_->tree());
-				        tbb::parallel_reduce(RangeT(tbb_thread_pool.begin(), tbb_thread_pool.end()), op);
-					}
-					else
-						kernel(tbb_iteration_range);
+					performIteration(tbb_thread_pool, tbb_iteration_range, kernel);
 				}
 			}
 
