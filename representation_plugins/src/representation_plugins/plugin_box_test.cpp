@@ -9,7 +9,6 @@ namespace representation_plugins{
 	PluginBoxTest::~PluginBoxTest(){
 		timer_.reset();
 		semantic_map_.reset();
-		map_.reset();
 	}
 
 	void PluginBoxTest::initialize() {
@@ -17,7 +16,7 @@ namespace representation_plugins{
 		timer_ = node_ptr_->create_wall_timer(
 			std::chrono::milliseconds(50),
 			std::bind(&PluginBoxTest::run, this));
-		semantic_map_ = std::make_shared<map_handler::MapHandler<openvdb::Int32Grid>>(
+		semantic_map_ = std::make_shared<map_handler::SemanticMapHandler>(
 			threaded_,
 			0.1,
 			true);
@@ -31,7 +30,7 @@ namespace representation_plugins{
 	void PluginBoxTest::run() {
 		auto request = std::make_shared<reg_of_space_server::srv::RegOfSpace::Request>();
 		request->plugin_name = name_;
-		request->n_regs = 3;
+		request->n_regs = 4;
 		std::vector<std::string> regs_id;
 		auto result = register_client_->async_send_request(request);
 		if (rclcpp::spin_until_future_complete(plugin_node_ptr_, result) == 
@@ -41,6 +40,15 @@ namespace representation_plugins{
 			auto reg_of_space_id_1 = regs_id[0];
 			auto reg_of_space_id_2 = regs_id[1];
 			auto reg_of_space_id_3 = regs_id[2];
+			auto reg_of_space_id_4 = regs_id[3];
+			openvdb::Vec3d cone_direction(
+				std::cos(omega_*(plugin_node_ptr_->get_clock()->now().seconds())),
+				std::sin(omega_*(plugin_node_ptr_->get_clock()->now().seconds())),
+				0.0);
+			openvdb::Vec3d cone_origin(
+				-1.0,
+				0.0,
+				0.0);
 			auto start = std::chrono::high_resolution_clock::now();
 	      	semantic_map_->insertSemanticBox(
 	      		1.0,
@@ -49,7 +57,6 @@ namespace representation_plugins{
 	      		reg_of_space_id_1,
 	      		*regions_register_,
 	      		openvdb::Vec3d(3*std::sin(omega_*(plugin_node_ptr_->get_clock()->now().seconds())), 0.0, 0.0));
-	      	std::cout<<"After box 1"<<std::endl;
 	      	semantic_map_->insertSemanticBox(
 	      		1.0,
 	      		1.0,
@@ -57,13 +64,27 @@ namespace representation_plugins{
 	      		reg_of_space_id_2,
 	      		*regions_register_,
 	      		openvdb::Vec3d(-3*std::sin(omega_*(plugin_node_ptr_->get_clock()->now().seconds())), 0.0, 0.0));
-	      	std::cout<<"After box 2"<<std::endl;
 	      	semantic_map_->insertSemanticSphere(
 	      		0.5,
 	      		reg_of_space_id_3,
 	      		*regions_register_);
+	      	
+	      	semantic_map_->insertSemanticCone(
+	      		0.2,
+	      		2.0,
+	      		cone_direction,
+	      		reg_of_space_id_4,
+	      		*regions_register_);
+	      	/*
+	      	semantic_map_->insertSemanticPyramid(
+	      		0.4,
+	      		0.4,
+	      		2.0,
+	      		cone_direction,
+	      		reg_of_space_id_4,
+	      		*regions_register_);
+	      	*/
 	      	map_publisher_->publish(*(semantic_map_->getGridPtr()));
-	      	std::cout<<"After sphere"<<std::endl;
 	      	regions_register_->print();
 	      	semantic_map_->removeRegion(reg_of_space_id_1,
 	      								*regions_register_);
@@ -71,14 +92,14 @@ namespace representation_plugins{
 	      								*regions_register_);
 	      	semantic_map_->removeRegion(reg_of_space_id_3,
 	      								*regions_register_);
+	      	semantic_map_->removeRegion(reg_of_space_id_4,
+	      								*regions_register_);
 	      	auto end = std::chrono::high_resolution_clock::now();
 	      	std::chrono::duration<double> elapsed = end - start;
 	      	std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
 		} else {
 			RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to call service");
 		}
-
-		RCLCPP_INFO(rclcpp::get_logger("rclcpp"), "Number of regions: %d", regions_register_->getRegionsNumber());
 
 		auto remove_request = std::make_shared<reg_of_space_server::srv::RemoveRegOfSpace::Request>();
 		remove_request->regs_of_space_id = regs_id;
@@ -94,7 +115,6 @@ namespace representation_plugins{
 			RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Failed to call service");
 		}
 
-		// semantic_map_->clear();
 		regions_register_->clear();
 	}
 }  // representation_plugins
