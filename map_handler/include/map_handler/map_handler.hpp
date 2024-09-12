@@ -73,7 +73,6 @@ namespace map_handler
 				approx_voxel_grid.setLeafSize(voxel_size_,voxel_size_,voxel_size_);
 				approx_voxel_grid.filter(*cloud_filtered);
 
-
 				tbb::enumerable_thread_specific<CurrentTreeType> tbb_thread_pool(grid_->tree());
 				tbb::blocked_range<std::vector<pcl::PointXYZRGB, Eigen::aligned_allocator<pcl::PointXYZRGB>>::iterator> tbb_iteration_range(cloud_filtered->points.begin(),cloud_filtered->points.end(),sizeof(cloud_filtered->points.begin()));
 
