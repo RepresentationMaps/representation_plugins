@@ -1,5 +1,5 @@
-#ifndef REPRESENTATION_PLUGINS__PLUGIN_BOX_TEST_HPP
-#define REPRESENTATION_PLUGINS__PLUGIN_BOX_TEST_HPP
+#ifndef REPRESENTATION_PLUGINS__PLUGIN_ANOTHER_BOX_TEST_HPP
+#define REPRESENTATION_PLUGINS__PLUGIN_ANOTHER_BOX_TEST_HPP
 
 #include <memory>
 #include <chrono>
@@ -14,20 +14,18 @@
 #include <vdb2pc/vdb2pc_publisher.hpp>
 
 namespace representation_plugins{
-	class PluginBoxTest: public SemanticPlugin {
+	class PluginAnotherBoxTest: public SemanticPlugin {
 		private:
 			double omega_;
 
 			std::string reg_of_space_id_1_;
 			std::string reg_of_space_id_2_;
-			std::string reg_of_space_id_3_;
-			std::string reg_of_space_id_4_;
 		public:
-			PluginBoxTest();
-			PluginBoxTest(
+			PluginAnotherBoxTest();
+			PluginAnotherBoxTest(
 				std::shared_ptr<map_handler::SemanticMapHandler> & semantic_map,
 				std::shared_ptr<representation_plugins::RegionsRegister> & regions_register);
-			~PluginBoxTest();
+			~PluginAnotherBoxTest();
 			void run() override;
 			void initialize() override;
 	};

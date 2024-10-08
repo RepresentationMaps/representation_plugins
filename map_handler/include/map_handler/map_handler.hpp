@@ -125,7 +125,12 @@ namespace map_handler
 			}
 			
 			template <class U>
-			void createFromAlignedDepth(const cv::Mat& aligned_depth_image, const cv::Mat& intrinsic_cam_matrix, const U &intensity, const bool& set_transient, const std::string& depth_image_encoding)
+			void createFromAlignedDepth(
+				const cv::Mat & aligned_depth_image,
+				const cv::Mat & intrinsic_cam_matrix,
+				const U & intensity,
+				const bool & set_transient,
+				const std::string & depth_image_encoding)
 			{
 				auto start = std::chrono::system_clock::now();
 				using GridAccessorType = typename GridT::Accessor;
@@ -144,9 +149,9 @@ namespace map_handler
 					double fy_inv = 1.0 / intrinsic_cam_matrix.at<float>(1, 1);
 					double cy = intrinsic_cam_matrix.at<float>(1, 2);
 
-					double z_metric;
 					double x_metric;
 					double y_metric;
+					double z_metric;
 
 					for(int row = iteration_range.rows().begin(); row != iteration_range.rows().end(); ++row)
 						for(int col = iteration_range.cols().begin(); col != iteration_range.cols().end(); ++col)

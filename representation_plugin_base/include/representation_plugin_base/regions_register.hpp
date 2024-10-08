@@ -28,6 +28,9 @@ namespace representation_plugins{
 			int getRegionsNumber() const;
 			void print() const;
 			int getId() const;
+
+			std::vector<std::string> getInstances() const;
+			std::vector<std::vector<std::string>, int> getAreas() const;
 	};
 }  // representation_plugins
 #endif

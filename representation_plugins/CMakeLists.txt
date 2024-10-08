@@ -26,14 +26,17 @@ find_package(map_handler REQUIRED)
 find_package(PCL REQUIRED)
 find_package(OpenVDB REQUIRED)
 find_package(pcl_conversions REQUIRED)
+find_package(representation_plugin_base REQUIRED)
 ament_auto_find_build_dependencies()
 
 message("${INCLUDE_DIRS}")
 
 # Targets
 add_library(representation_plugins SHARED 
+src/representation_plugins/semantic_plugin.cpp
 src/representation_plugins/plugin_test.cpp
-src/representation_plugins/plugin_box_test.cpp)
+src/representation_plugins/plugin_box_test.cpp
+src/representation_plugins/plugin_another_box_test.cpp)
 
 target_link_libraries(${PROJECT_NAME}
   ${PCL_LIBRARIES}  

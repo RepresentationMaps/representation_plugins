@@ -26,6 +26,7 @@ namespace representation_plugins{
 			rclcpp::Client<reg_of_space_server::srv::RemoveRegOfSpace>::SharedPtr remove_client_;
 		public:
 			PluginBase();
+			PluginBase(std::shared_ptr<RegionsRegister> & regions_register);
 			virtual ~PluginBase();
 			void setup(
 				const std::shared_ptr<rclcpp::Node> & node_ptr,

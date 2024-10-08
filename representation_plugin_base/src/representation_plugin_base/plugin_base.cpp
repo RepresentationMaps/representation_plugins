@@ -3,6 +3,10 @@
 namespace representation_plugins{
 	PluginBase::PluginBase(){}
 
+	PluginBase::PluginBase(std::shared_ptr<RegionsRegister> & regions_register){
+		regions_register_ = regions_register;
+	}
+
 	PluginBase::~PluginBase(){
 		remove_client_.reset();
 		register_client_.reset();

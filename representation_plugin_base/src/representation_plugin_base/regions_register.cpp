@@ -103,4 +103,20 @@ namespace representation_plugins{
 	int RegionsRegister::getId() const {
 		return id_;
 	}
+
+	std::vector<std::string> RegionsRegister::getInstances() const {
+		std::vector<std::string> instances;
+		for (const auto & area : areas_){
+			for (const auto & instance : area.first){
+				if (std::find(instances.begin(), instances.end(), instance) == instances.end()){
+					instances.push_back(instance);
+				}
+			}
+		}
+		return instances;
+	}
+
+	std::vector<std::vector<std::string>, int> RegionsRegister::getAreas() const{
+		return areas_;
+	}
 } // representation_plugins

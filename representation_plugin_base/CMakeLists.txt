@@ -23,6 +23,11 @@ find_package(ament_cmake_auto REQUIRED)
 find_package(TBB REQUIRED)
 ament_auto_find_build_dependencies()
 
+# rosidl_generate_interfaces(${PROJECT_NAME}
+#   "msg/StringArray.msg"
+#   "msg/RegionsRegisterDescriptor.msg"
+# )
+
 # Targets
 ament_auto_add_library(${PROJECT_NAME}_lib SHARED
   src/representation_plugin_base/plugin_base.cpp
