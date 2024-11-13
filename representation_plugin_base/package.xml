@@ -1,14 +1,14 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>representation_plugin_base</name>
-  <version>1.9.9</version>
-  <description>A bunch of plugins</description>
+  <version>0.0.0</version>
+  <description>Representation plugin base package</description>
 
-  <maintainer email="lorenzo.ferrini@pal-robotics.com">Lorenzo Ferrini</maintainer>
+  <maintainer email="anon@anon.ymous">Anon Ymous</maintainer>
 
-  <license>PAL Robotics S.L.</license>
+  <license>Apache License 2.0</license>
 
-  <author email="lorenzo.ferrini@pal-robotics.com">Lorenzo Ferrini</author>
+  <author email="anon@anon.ymous">Anon Ymous</author>
 
   <buildtool_depend>ament_cmake_auto</buildtool_depend>
   <buildtool_depend>rosidl_default_generators</buildtool_depend>

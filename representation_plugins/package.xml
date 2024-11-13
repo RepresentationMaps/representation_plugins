@@ -1,14 +1,14 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>representation_plugins</name>
-  <version>1.9.9</version>
+  <version>0.0.0</version>
   <description>A bunch of plugins</description>
 
-  <maintainer email="lorenzo.ferrini@pal-robotics.com">Lorenzo Ferrini</maintainer>
+  <maintainer email="anon@anon.ymous">Anon Ymous</maintainer>
 
-  <license>PAL Robotics S.L.</license>
+  <license>Apache License 2.0</license>
 
-  <author email="lorenzo.ferrini@pal-robotics.com">Lorenzo Ferrini</author>
+  <author email="anon@anon.ymous">Anon Ymous</author>
 
   <buildtool_depend>ament_cmake_auto</buildtool_depend>
 
