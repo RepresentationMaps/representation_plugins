@@ -115,8 +115,4 @@ namespace representation_plugins{
 		}
 		return instances;
 	}
-
-	std::vector<std::vector<std::string>, int> RegionsRegister::getAreas() const{
-		return areas_;
-	}
 } // representation_plugins

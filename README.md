@@ -14,7 +14,7 @@ Building reMap
 3. Initialize `rosdep`, update and run this command to install all the dependencies:
 	`rosdep install -y --skip-keys map_handler --skip-keys representation_plugin_base --skip-keys vdb2pc --skip-keys OpenCV --skip-keys openvdb --skip-keys reg_of_space_server --skip-keys representation_plugins --from-path src
 `.
-4. Time to build! `colcon build --packages-select vdb2pc reg_of_space_server representation_plugin_base map_handler representation_plugins representation_manager --cmake-args "-DFIND_OPENVDB_PATH=/usr/local/lib/cmake/OpenVDB"` 
+4. Time to build! `colcon build --packages-select vdb2pc reg_of_space_server representation_plugin_base map_handler representation_plugins representation_manager simulation_player --cmake-args "-DFIND_OPENVDB_PATH=/usr/local/lib/cmake/OpenVDB"`
 
 Demo time!
 ----------
