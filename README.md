@@ -17,7 +17,7 @@ In order to run the `reMap` demo part of the HRI 2025 submission, other `reMap` 
 - [`vdb2pc`](https://anonymous.4open.science/r/vdb2pc/README.md)
 - [`simulation_player`](https://anonymous.4open.science/r/simulation_player/README.md)
 
-Maintainance Note
+Maintenance Note
 -----------------
 
 ### Maintenance and Future Development
