@@ -1,9 +1,9 @@
 # Ethical and Responsible Use Statement
 
-This repository contains code developed as part of the `reMap` project. The objective of this project is to enhance human-robot interaction by enabling robots to represent and query spatially grounded semantic information efficiently. Given the potential applications of this technology, we emphasize the following considerations for ethical and responsible use:
+This repository contains code developed as part of the `Anonymized Project` project. The objective of this project is to enhance human-robot interaction by enabling robots to represent and query spatially grounded semantic information efficiently. Given the potential applications of this technology, we emphasize the following considerations for ethical and responsible use:
 
 ## 1. Respect for Privacy and Data Protection
-The code is designed to process spatial and symbolic data, which may include personal information. Users are strongly advised to comply with local and international privacy laws (e.g., GDPR) and ensure that any data collected respects individuals' privacy and consent.
+The code is designed to process spatial and symbolic data. While `Anonymized Project` itself does not collect any personal information, user-developed `Anonymized Project` plugins could do. In this case, users are strongly advised to comply with local and international privacy laws (e.g., GDPR) and ensure that any data collected respects individuals' privacy and consent.
 
 ## 2. Avoidance of Harm and Misuse
 The algorithms and data structures provided here are intended to improve interaction and assistive capabilities of robots. They should not be used for purposes that could harm individuals, such as unauthorized surveillance or manipulation of individuals' behaviors.
