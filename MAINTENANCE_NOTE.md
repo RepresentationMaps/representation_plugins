@@ -4,12 +4,12 @@ Maintenance Note
 Maintenance and Future Development
 ----------------------------------
 
-The authors of this repository are committed to maintaining and actively developing this code for the years to come. This work is part of the broader `reMap` project. The code will be maintained within the `reMap` GitHub organization to ensure a cohesive and well-supported ecosystem across all related repositories.
+The authors of this repository are committed to maintaining and actively developing this repository. This work is part of the broader `reMap` project. The code will be maintained within the `reMap` GitHub organization to ensure a cohesive and well-supported ecosystem across all related repositories.
 
 Project Support
 ---------------
 
-The development of the entire `reMap` project is financially supported by **Anonymized Company Name**. This support enables us to dedicate resources for continuous improvements, bug fixes, and the addition of new features. While the `reMap` framework is designed to be generic and adaptable across different platforms, **Anonymized Company Name** is committed to integrating reMap into its robotic products, thereby actively promoting and advancing the project.
+The development of the entire `reMap` project is financially supported by **Anonymized Company Name**. This support enables us to dedicate resources for continuous improvements, bug fixes, and the addition of new features. While the `reMap` framework is designed to be generic and adaptable across different platforms, **Anonymized Company Name** is committed to integrating `reMap` into its robotic products, thereby actively promoting and advancing the project.
 
 Open-Source Commitment
 ----------------------
