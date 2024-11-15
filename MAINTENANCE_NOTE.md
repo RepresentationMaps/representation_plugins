@@ -4,7 +4,7 @@ Maintenance Note
 Maintenance and Future Development
 ----------------------------------
 
-The authors of this repository are committed to maintaining and actively developing this repository. This work is part of the broader `reMap` project. The code will be maintained within the `reMap` GitHub organization to ensure a cohesive and well-supported ecosystem across all related repositories.
+The authors of this repository are committed to its active development and maintenance. This work is part of the broader `reMap` project. The code will be maintained within the `reMap` GitHub organization to ensure a cohesive and well-supported ecosystem across all related repositories.
 
 Project Support
 ---------------
